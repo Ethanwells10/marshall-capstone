@@ -1,0 +1,14 @@
+# Node
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# Go
+backend/backend
+backend/*.exe
+backend/*.out
+
+# OS / Editor
+.DS_Store
+.vscode
+.idea
