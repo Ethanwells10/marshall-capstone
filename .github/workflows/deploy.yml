@@ -1,0 +1,53 @@
+name: Deploy to Lightsail
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+
+    - name: Build frontend
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+
+    - name: Setup SSH key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+    - name: Deploy frontend
+      run: |
+        scp -r frontend/dist/* ubuntu@${{ secrets.SERVER_IP }}:/tmp/frontend-deploy/
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo rm -rf /var/www/hello-frontend/* && sudo mv /tmp/frontend-deploy/* /var/www/hello-frontend/"
+
+    - name: Deploy backend
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} << 'EOF'
+          cd ~/marshall-capstone
+          git pull origin main
+          cd backend
+          go build -o backend .
+          sudo systemctl restart marshall-backend
+        EOF
+
+    - name: Verify deployment
+      run: |
+        sleep 5
+        curl -f http://${{ secrets.SERVER_IP }}/health || exit 1
+        echo "Deployment successful!"
