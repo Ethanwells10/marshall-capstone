@@ -12,3 +12,5 @@ backend/*.out
 .DS_Store
 .vscode
 .idea
+backend/backend-linux
+backend/backend
