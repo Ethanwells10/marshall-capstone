@@ -52,10 +52,14 @@ export default function Admin() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    const athleteData = {
+      ...formData,
+      grade: parseInt(formData.grade, 10),
+    };
     if (editingAthlete) {
-      updateMutation.mutate({ id: editingAthlete.id, data: formData });
+      updateMutation.mutate({ id: editingAthlete.id, data: athleteData });
     } else {
-      createMutation.mutate(formData);
+      createMutation.mutate(athleteData);
     }
   };
 

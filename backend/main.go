@@ -288,6 +288,46 @@ func createResultHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
+// PUT /api/athletes/:id - Update athlete
+func updateAthleteHandler(w http.ResponseWriter, r *http.Request) {
+	enableCORS(w)
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method == "OPTIONS" {
+		return
+	}
+
+	id := strings.TrimPrefix(r.URL.Path, "/api/athletes/")
+	athleteID, err := strconv.Atoi(id)
+	if err != nil {
+		http.Error(w, `{"error":"Invalid athlete ID"}`, http.StatusBadRequest)
+		return
+	}
+
+	var a Athlete
+	if err := json.NewDecoder(r.Body).Decode(&a); err != nil {
+		http.Error(w, `{"error":"Invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+
+	result, err := db.Exec("UPDATE athletes SET name = ?, grade = ?, personal_record = ?, team = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+		a.Name, a.Grade, a.PersonalRecord, a.Team, athleteID)
+	if err != nil {
+		http.Error(w, `{"error":"Failed to update athlete"}`, http.StatusInternalServerError)
+		log.Printf("Update error: %v", err)
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		http.Error(w, `{"error":"Athlete not found"}`, http.StatusNotFound)
+		return
+	}
+
+	a.ID = athleteID
+	json.NewEncoder(w).Encode(a)
+}
+
 // DELETE /api/athletes/:id - Delete athlete
 func deleteAthleteHandler(w http.ResponseWriter, r *http.Request) {
 	enableCORS(w)
@@ -356,6 +396,8 @@ func main() {
 		switch r.Method {
 		case "GET":
 			getAthleteHandler(w, r)
+		case "PUT":
+			updateAthleteHandler(w, r)
 		case "DELETE":
 			deleteAthleteHandler(w, r)
 		case "OPTIONS":
