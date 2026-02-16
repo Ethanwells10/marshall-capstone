@@ -43,24 +43,31 @@ export const resultsAPI = {
   create: (data) => api.post('/results', data),
 };
 
-// Auth API (simple password check)
+// Auth API (simple username/password check)
 export const authAPI = {
-  login: (password) => {
+  login: (username, password) => {
     // Simple auth - in production you'd validate against backend
-    // For now, just check if password matches a hardcoded value
-    if (password === 'admin123') {
+    // For now, just check if credentials match hardcoded values
+    if (username === 'ethanwells' && password === 'admin123') {
       const token = 'fake-jwt-token';
+      const user = { username: 'ethanwells', name: 'Ethan Wells' };
       localStorage.setItem('auth_token', token);
-      return Promise.resolve({ token });
+      localStorage.setItem('auth_user', JSON.stringify(user));
+      return Promise.resolve({ token, user });
     }
-    return Promise.reject(new Error('Invalid password'));
+    return Promise.reject(new Error('Invalid username or password'));
   },
   logout: () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
     return Promise.resolve();
   },
   isAuthenticated: () => {
     return !!localStorage.getItem('auth_token');
+  },
+  getUser: () => {
+    const userStr = localStorage.getItem('auth_user');
+    return userStr ? JSON.parse(userStr) : null;
   },
 };
 

@@ -14,3 +14,4 @@ backend/*.out
 .idea
 backend/backend-linux
 backend/backend
+frontend/dist.tar.gz
