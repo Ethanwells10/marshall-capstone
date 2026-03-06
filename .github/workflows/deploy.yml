@@ -6,35 +6,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-        cache-dependency-path: frontend/package-lock.json
-
-    - name: Build frontend
-      run: |
-        cd frontend
-        npm ci
-        npm run build
-
-    - name: Setup Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.22'
-
-    - name: Build backend (cross-compile for Linux)
-      run: |
-        cd backend
-        GOOS=linux GOARCH=amd64 go build -o backend-linux .
 
     - name: Setup SSH key
       run: |
@@ -43,20 +20,32 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Deploy frontend
-      run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "mkdir -p /tmp/frontend-deploy"
-        scp -r frontend/dist/* ubuntu@${{ secrets.SERVER_IP }}:/tmp/frontend-deploy/
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo rm -rf /var/www/hello-frontend/* && sudo cp -r /tmp/frontend-deploy/* /var/www/hello-frontend/ && rm -rf /tmp/frontend-deploy"
-
     - name: Deploy backend
       run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl stop marshall-backend"
-        scp backend/backend-linux ubuntu@${{ secrets.SERVER_IP }}:~/marshall-capstone/backend/backend
-        ssh ubuntu@${{ secrets.SERVER_IP }} "chmod +x ~/marshall-capstone/backend/backend && sudo systemctl start marshall-backend"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "mkdir -p ~/market-monitor/backend"
+        scp -r backend/ ubuntu@${{ secrets.SERVER_IP }}:~/market-monitor/
+        ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/market-monitor/backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+
+    - name: Setup and restart service
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo tee /etc/systemd/system/market-monitor.service > /dev/null << 'UNIT'
+        [Unit]
+        Description=Market Monitor Flask App
+        After=network.target
+
+        [Service]
+        User=ubuntu
+        WorkingDirectory=/home/ubuntu/market-monitor/backend
+        ExecStart=/home/ubuntu/market-monitor/backend/venv/bin/gunicorn --bind 127.0.0.1:5000 'app:create_app()'
+        Restart=always
+
+        [Install]
+        WantedBy=multi-user.target
+        UNIT"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl daemon-reload && sudo systemctl enable market-monitor && sudo systemctl restart market-monitor"
 
     - name: Verify deployment
       run: |
         sleep 5
-        curl -f https://${{ secrets.SERVER_IP }}/health || curl -f https://marshallcapew.xyz/health || exit 1
+        ssh ubuntu@${{ secrets.SERVER_IP }} "curl -f http://127.0.0.1:5000/api/health" || exit 1
         echo "Deployment successful!"

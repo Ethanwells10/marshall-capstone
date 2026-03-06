@@ -1,7 +1,0 @@
-@import "tailwindcss";
-
-@layer base {
-  body {
-    @apply min-h-screen bg-gray-50;
-  }
-}

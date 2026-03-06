@@ -1,17 +1,14 @@
-# Node
-frontend/node_modules
-frontend/dist
-frontend/.vite
-
-# Go
-backend/backend
-backend/*.exe
-backend/*.out
+# Python
+__pycache__/
+*.py[cod]
+backend/venv/
+backend/.env
+*.egg-info/
 
 # OS / Editor
 .DS_Store
 .vscode
 .idea
-backend/backend-linux
-backend/backend
-frontend/dist.tar.gz
+
+# Environment
+.env
