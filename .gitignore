@@ -10,5 +10,8 @@ backend/.env
 .vscode
 .idea
 
+# Database
+*.db
+
 # Environment
 .env
