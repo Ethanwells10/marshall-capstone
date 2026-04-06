@@ -26,7 +26,12 @@ jobs:
 
     - name: Start MySQL service
       run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl enable mysql && (sudo systemctl start mysql || sudo systemctl restart mysql) && sleep 2 && sudo mysqladmin ping"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl status mysql || true"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo journalctl -xeu mysql.service --no-pager -n 30 || true"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo cat /var/log/mysql/error.log 2>/dev/null | tail -30 || true"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo ls -la /var/lib/mysql/ || true"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysqld --initialize-insecure --user=mysql 2>&1 || true"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl start mysql && sleep 2 && sudo mysqladmin ping"
 
     - name: Create MySQL database and user
       run: |
