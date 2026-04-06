@@ -15,14 +15,14 @@ def get_notes():
         rows = db.execute("""
             SELECT id, ticker_symbol, note_text, created_at, updated_at
             FROM user_notes
-            WHERE user_id = ? AND ticker_symbol = ?
+            WHERE user_id = %s AND ticker_symbol = %s
             ORDER BY updated_at DESC
         """, (session["user_id"], symbol.upper())).fetchall()
     else:
         rows = db.execute("""
             SELECT id, ticker_symbol, note_text, created_at, updated_at
             FROM user_notes
-            WHERE user_id = ?
+            WHERE user_id = %s
             ORDER BY updated_at DESC
         """, (session["user_id"],)).fetchall()
 
@@ -42,12 +42,12 @@ def create_note():
     db = get_db()
 
     # Ensure ticker exists
-    ticker = db.execute("SELECT symbol FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
+    ticker = db.execute("SELECT symbol FROM tickers WHERE symbol = %s", (symbol,)).fetchone()
     if not ticker:
-        db.execute("INSERT INTO tickers (symbol, name) VALUES (?, ?)", (symbol, symbol))
+        db.execute("INSERT INTO tickers (symbol, name) VALUES (%s, %s)", (symbol, symbol))
 
     cursor = db.execute(
-        "INSERT INTO user_notes (user_id, ticker_symbol, note_text) VALUES (?, ?, ?)",
+        "INSERT INTO user_notes (user_id, ticker_symbol, note_text) VALUES (%s, %s, %s)",
         (session["user_id"], symbol, note_text)
     )
     db.commit()
@@ -64,7 +64,7 @@ def create_note():
 @login_required
 def update_note(note_id):
     db = get_db()
-    note = db.execute("SELECT * FROM user_notes WHERE id = ? AND user_id = ?", (note_id, session["user_id"])).fetchone()
+    note = db.execute("SELECT * FROM user_notes WHERE id = %s AND user_id = %s", (note_id, session["user_id"])).fetchone()
     if not note:
         return jsonify({"error": "Note not found"}), 404
 
@@ -74,7 +74,7 @@ def update_note(note_id):
 
     note_text = data["note_text"].strip()
     db.execute(
-        "UPDATE user_notes SET note_text = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+        "UPDATE user_notes SET note_text = %s, updated_at = CURRENT_TIMESTAMP WHERE id = %s",
         (note_text, note_id)
     )
     db.commit()
@@ -86,11 +86,11 @@ def update_note(note_id):
 @login_required
 def delete_note(note_id):
     db = get_db()
-    note = db.execute("SELECT * FROM user_notes WHERE id = ? AND user_id = ?", (note_id, session["user_id"])).fetchone()
+    note = db.execute("SELECT * FROM user_notes WHERE id = %s AND user_id = %s", (note_id, session["user_id"])).fetchone()
     if not note:
         return jsonify({"error": "Note not found"}), 404
 
-    db.execute("DELETE FROM user_notes WHERE id = ?", (note_id,))
+    db.execute("DELETE FROM user_notes WHERE id = %s", (note_id,))
     db.commit()
 
     return jsonify({"message": "Note deleted"})

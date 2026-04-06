@@ -20,6 +20,27 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
+    - name: Install MySQL and setup database
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} '
+          # Install MySQL if not present
+          if ! command -v mysql &> /dev/null; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
+            sudo systemctl start mysql
+            sudo systemctl enable mysql
+          fi
+
+          # Ensure MySQL is running
+          sudo systemctl start mysql
+
+          # Create database and user
+          sudo mysql -e "CREATE DATABASE IF NOT EXISTS market_monitor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+          sudo mysql -e "CREATE USER IF NOT EXISTS '"'"'market_user'"'"'@'"'"'localhost'"'"' IDENTIFIED BY '"'"'market_pass'"'"';"
+          sudo mysql -e "GRANT ALL PRIVILEGES ON market_monitor.* TO '"'"'market_user'"'"'@'"'"'localhost'"'"';"
+          sudo mysql -e "FLUSH PRIVILEGES;"
+        '
+
     - name: Deploy backend
       run: |
         ssh ubuntu@${{ secrets.SERVER_IP }} "mkdir -p ~/market-monitor/backend"
@@ -31,11 +52,15 @@ jobs:
         ssh ubuntu@${{ secrets.SERVER_IP }} "sudo tee /etc/systemd/system/market-monitor.service > /dev/null << 'UNIT'
         [Unit]
         Description=Market Monitor Flask App
-        After=network.target
+        After=network.target mysql.service
 
         [Service]
         User=ubuntu
         WorkingDirectory=/home/ubuntu/market-monitor/backend
+        Environment=MYSQL_HOST=localhost
+        Environment=MYSQL_USER=market_user
+        Environment=MYSQL_PASSWORD=market_pass
+        Environment=MYSQL_DATABASE=market_monitor
         ExecStart=/home/ubuntu/market-monitor/backend/venv/bin/gunicorn --bind 127.0.0.1:5000 'app:create_app()'
         Restart=always
 
