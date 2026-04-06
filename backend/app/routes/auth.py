@@ -28,13 +28,13 @@ def register():
         return jsonify({"error": "Password must be at least 6 characters"}), 400
 
     db = get_db()
-    existing = db.execute("SELECT id FROM users WHERE email = %s", (email,)).fetchone()
+    existing = db.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
     if existing:
         return jsonify({"error": "Email already exists"}), 409
 
     password_hash = generate_password_hash(password)
     cursor = db.execute(
-        "INSERT INTO users (email, password_hash) VALUES (%s, %s)",
+        "INSERT INTO users (email, password_hash) VALUES (?, ?)",
         (email, password_hash)
     )
     db.commit()
@@ -58,7 +58,7 @@ def login():
     password = data["password"]
 
     db = get_db()
-    user = db.execute("SELECT * FROM users WHERE email = %s", (email,)).fetchone()
+    user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
 
     if not user or not check_password_hash(user["password_hash"], password):
         return jsonify({"error": "Invalid credentials"}), 401
@@ -81,7 +81,7 @@ def logout():
 @login_required
 def me():
     db = get_db()
-    user = db.execute("SELECT id, email, created_at FROM users WHERE id = %s", (session["user_id"],)).fetchone()
+    user = db.execute("SELECT id, email, created_at FROM users WHERE id = ?", (session["user_id"],)).fetchone()
     if not user:
         session.clear()
         return jsonify({"error": "User not found"}), 404

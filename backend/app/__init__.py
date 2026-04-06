@@ -1,23 +1,11 @@
-from datetime import datetime
 from flask import Flask
-from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
-from flask import g
 from .db import init_db, get_db
 import os
 
 
-class CustomJSONProvider(DefaultJSONProvider):
-    def default(self, o):
-        if isinstance(o, datetime):
-            return o.isoformat()
-        return super().default(o)
-
-
 def create_app():
     app = Flask(__name__)
-    app.json_provider_class = CustomJSONProvider
-    app.json = CustomJSONProvider(app)
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
     CORS(app)
@@ -49,7 +37,7 @@ def create_app():
 
     @app.teardown_appcontext
     def close_db(exception):
-        db = g.pop("db", None)
+        db = get_db()
         if db is not None:
             db.close()
 

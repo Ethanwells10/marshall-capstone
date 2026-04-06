@@ -16,7 +16,7 @@ def get_stock(symbol):
     db = get_db()
 
     # Get ticker from database
-    ticker = db.execute("SELECT * FROM tickers WHERE symbol = %s", (symbol,)).fetchone()
+    ticker = db.execute("SELECT * FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
 
     stock_data = {
         "symbol": symbol,

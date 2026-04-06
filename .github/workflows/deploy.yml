@@ -20,30 +20,11 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Install MySQL on server
-      run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "dpkg -l | grep -q mysql-server || (sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server)"
-
-    - name: Start MySQL service
-      run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl status mysql || true"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo journalctl -xeu mysql.service --no-pager -n 30 || true"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo cat /var/log/mysql/error.log 2>/dev/null | tail -30 || true"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo ls -la /var/lib/mysql/ || true"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysqld --initialize-insecure --user=mysql 2>&1 || true"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl start mysql && sleep 2 && sudo mysqladmin ping"
-
-    - name: Create MySQL database and user
-      run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e 'CREATE DATABASE IF NOT EXISTS market_monitor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'"
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e \"CREATE USER IF NOT EXISTS 'market_user'@'localhost' IDENTIFIED BY 'market_pass';\""
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e \"GRANT ALL PRIVILEGES ON market_monitor.* TO 'market_user'@'localhost';\""
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e 'FLUSH PRIVILEGES;'"
-
     - name: Deploy backend
       run: |
         ssh ubuntu@${{ secrets.SERVER_IP }} "mkdir -p ~/market-monitor/backend"
         scp -r backend/ ubuntu@${{ secrets.SERVER_IP }}:~/market-monitor/
+        ssh ubuntu@${{ secrets.SERVER_IP }} "rm -f ~/market-monitor/backend/market_monitor.db"
         ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/market-monitor/backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
 
     - name: Setup and restart service
@@ -51,15 +32,11 @@ jobs:
         ssh ubuntu@${{ secrets.SERVER_IP }} "sudo tee /etc/systemd/system/market-monitor.service > /dev/null << 'UNIT'
         [Unit]
         Description=Market Monitor Flask App
-        After=network.target mysql.service
+        After=network.target
 
         [Service]
         User=ubuntu
         WorkingDirectory=/home/ubuntu/market-monitor/backend
-        Environment=MYSQL_HOST=localhost
-        Environment=MYSQL_USER=market_user
-        Environment=MYSQL_PASSWORD=market_pass
-        Environment=MYSQL_DATABASE=market_monitor
         ExecStart=/home/ubuntu/market-monitor/backend/venv/bin/gunicorn --bind 127.0.0.1:5000 'app:create_app()'
         Restart=always
 

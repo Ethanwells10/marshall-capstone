@@ -13,7 +13,7 @@ def get_watchlists():
         SELECT w.id, w.name, w.created_at, COUNT(wi.id) as item_count
         FROM watchlists w
         LEFT JOIN watchlist_items wi ON w.id = wi.watchlist_id
-        WHERE w.user_id = %s
+        WHERE w.user_id = ?
         GROUP BY w.id
         ORDER BY w.created_at DESC
     """, (session["user_id"],)).fetchall()
@@ -33,14 +33,14 @@ def create_watchlist():
     db = get_db()
 
     existing = db.execute(
-        "SELECT id FROM watchlists WHERE user_id = %s AND name = %s",
+        "SELECT id FROM watchlists WHERE user_id = ? AND name = ?",
         (session["user_id"], name)
     ).fetchone()
     if existing:
         return jsonify({"error": "Watchlist with this name already exists"}), 409
 
     cursor = db.execute(
-        "INSERT INTO watchlists (user_id, name) VALUES (%s, %s)",
+        "INSERT INTO watchlists (user_id, name) VALUES (?, ?)",
         (session["user_id"], name)
     )
     db.commit()
@@ -52,7 +52,7 @@ def create_watchlist():
 @login_required
 def update_watchlist(watchlist_id):
     db = get_db()
-    wl = db.execute("SELECT * FROM watchlists WHERE id = %s AND user_id = %s", (watchlist_id, session["user_id"])).fetchone()
+    wl = db.execute("SELECT * FROM watchlists WHERE id = ? AND user_id = ?", (watchlist_id, session["user_id"])).fetchone()
     if not wl:
         return jsonify({"error": "Watchlist not found"}), 404
 
@@ -63,13 +63,13 @@ def update_watchlist(watchlist_id):
     name = data["name"].strip()
 
     existing = db.execute(
-        "SELECT id FROM watchlists WHERE user_id = %s AND name = %s AND id != %s",
+        "SELECT id FROM watchlists WHERE user_id = ? AND name = ? AND id != ?",
         (session["user_id"], name, watchlist_id)
     ).fetchone()
     if existing:
         return jsonify({"error": "Watchlist with this name already exists"}), 409
 
-    db.execute("UPDATE watchlists SET name = %s WHERE id = %s", (name, watchlist_id))
+    db.execute("UPDATE watchlists SET name = ? WHERE id = ?", (name, watchlist_id))
     db.commit()
 
     return jsonify({"id": watchlist_id, "name": name})
@@ -79,11 +79,11 @@ def update_watchlist(watchlist_id):
 @login_required
 def delete_watchlist(watchlist_id):
     db = get_db()
-    wl = db.execute("SELECT * FROM watchlists WHERE id = %s AND user_id = %s", (watchlist_id, session["user_id"])).fetchone()
+    wl = db.execute("SELECT * FROM watchlists WHERE id = ? AND user_id = ?", (watchlist_id, session["user_id"])).fetchone()
     if not wl:
         return jsonify({"error": "Watchlist not found"}), 404
 
-    db.execute("DELETE FROM watchlists WHERE id = %s", (watchlist_id,))
+    db.execute("DELETE FROM watchlists WHERE id = ?", (watchlist_id,))
     db.commit()
 
     return jsonify({"message": "Watchlist deleted"})
@@ -93,7 +93,7 @@ def delete_watchlist(watchlist_id):
 @login_required
 def get_watchlist_items(watchlist_id):
     db = get_db()
-    wl = db.execute("SELECT * FROM watchlists WHERE id = %s AND user_id = %s", (watchlist_id, session["user_id"])).fetchone()
+    wl = db.execute("SELECT * FROM watchlists WHERE id = ? AND user_id = ?", (watchlist_id, session["user_id"])).fetchone()
     if not wl:
         return jsonify({"error": "Watchlist not found"}), 404
 
@@ -101,7 +101,7 @@ def get_watchlist_items(watchlist_id):
         SELECT t.symbol, t.name, t.exchange, t.sector, t.industry
         FROM watchlist_items wi
         JOIN tickers t ON wi.ticker_symbol = t.symbol
-        WHERE wi.watchlist_id = %s
+        WHERE wi.watchlist_id = ?
         ORDER BY t.symbol
     """, (watchlist_id,)).fetchall()
 
@@ -117,7 +117,7 @@ def get_watchlist_items(watchlist_id):
 @login_required
 def add_watchlist_item(watchlist_id):
     db = get_db()
-    wl = db.execute("SELECT * FROM watchlists WHERE id = %s AND user_id = %s", (watchlist_id, session["user_id"])).fetchone()
+    wl = db.execute("SELECT * FROM watchlists WHERE id = ? AND user_id = ?", (watchlist_id, session["user_id"])).fetchone()
     if not wl:
         return jsonify({"error": "Watchlist not found"}), 404
 
@@ -128,20 +128,20 @@ def add_watchlist_item(watchlist_id):
     symbol = data["symbol"].strip().upper()
 
     # Check if ticker exists, if not create it
-    ticker = db.execute("SELECT symbol FROM tickers WHERE symbol = %s", (symbol,)).fetchone()
+    ticker = db.execute("SELECT symbol FROM tickers WHERE symbol = ?", (symbol,)).fetchone()
     if not ticker:
-        db.execute("INSERT INTO tickers (symbol, name) VALUES (%s, %s)", (symbol, symbol))
+        db.execute("INSERT INTO tickers (symbol, name) VALUES (?, ?)", (symbol, symbol))
 
     # Check if already in watchlist
     existing = db.execute(
-        "SELECT id FROM watchlist_items WHERE watchlist_id = %s AND ticker_symbol = %s",
+        "SELECT id FROM watchlist_items WHERE watchlist_id = ? AND ticker_symbol = ?",
         (watchlist_id, symbol)
     ).fetchone()
     if existing:
         return jsonify({"error": "Ticker already in watchlist"}), 409
 
     db.execute(
-        "INSERT INTO watchlist_items (watchlist_id, ticker_symbol) VALUES (%s, %s)",
+        "INSERT INTO watchlist_items (watchlist_id, ticker_symbol) VALUES (?, ?)",
         (watchlist_id, symbol)
     )
     db.commit()
@@ -153,19 +153,19 @@ def add_watchlist_item(watchlist_id):
 @login_required
 def remove_watchlist_item(watchlist_id, symbol):
     db = get_db()
-    wl = db.execute("SELECT * FROM watchlists WHERE id = %s AND user_id = %s", (watchlist_id, session["user_id"])).fetchone()
+    wl = db.execute("SELECT * FROM watchlists WHERE id = ? AND user_id = ?", (watchlist_id, session["user_id"])).fetchone()
     if not wl:
         return jsonify({"error": "Watchlist not found"}), 404
 
     symbol = symbol.upper()
     item = db.execute(
-        "SELECT id FROM watchlist_items WHERE watchlist_id = %s AND ticker_symbol = %s",
+        "SELECT id FROM watchlist_items WHERE watchlist_id = ? AND ticker_symbol = ?",
         (watchlist_id, symbol)
     ).fetchone()
     if not item:
         return jsonify({"error": "Ticker not in watchlist"}), 404
 
-    db.execute("DELETE FROM watchlist_items WHERE id = %s", (item["id"],))
+    db.execute("DELETE FROM watchlist_items WHERE id = ?", (item["id"],))
     db.commit()
 
     return jsonify({"message": f"{symbol} removed from watchlist"})
