@@ -20,43 +20,20 @@ jobs:
         chmod 600 ~/.ssh/id_rsa
         ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
 
-    - name: Install MySQL and setup database
+    - name: Install MySQL on server
       run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} 'bash -s' << 'REMOTE_SCRIPT'
-          set -e
+        ssh ubuntu@${{ secrets.SERVER_IP }} "dpkg -l | grep -q mysql-server || (sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server)"
 
-          # Install MySQL if not present
-          if ! dpkg -l | grep -q mysql-server; then
-            sudo apt-get update
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y mysql-server
-          fi
+    - name: Start MySQL service
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo systemctl enable mysql && (sudo systemctl start mysql || sudo systemctl restart mysql) && sleep 2 && sudo mysqladmin ping"
 
-          # Initialize MySQL data directory if needed
-          if [ ! -d /var/lib/mysql/mysql ]; then
-            sudo mysqld --initialize-insecure --user=mysql
-          fi
-
-          # Ensure MySQL is running
-          sudo systemctl enable mysql
-          sudo systemctl start mysql || sudo systemctl restart mysql
-
-          # Wait for MySQL to be ready
-          for i in 1 2 3 4 5; do
-            if sudo mysqladmin ping --silent 2>/dev/null; then
-              break
-            fi
-            echo "Waiting for MySQL to start..."
-            sleep 3
-          done
-
-          # Create database and user
-          sudo mysql -e "CREATE DATABASE IF NOT EXISTS market_monitor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-          sudo mysql -e "CREATE USER IF NOT EXISTS 'market_user'@'localhost' IDENTIFIED BY 'market_pass';"
-          sudo mysql -e "GRANT ALL PRIVILEGES ON market_monitor.* TO 'market_user'@'localhost';"
-          sudo mysql -e "FLUSH PRIVILEGES;"
-
-          echo "MySQL setup complete."
-        REMOTE_SCRIPT
+    - name: Create MySQL database and user
+      run: |
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e 'CREATE DATABASE IF NOT EXISTS market_monitor CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;'"
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e \"CREATE USER IF NOT EXISTS 'market_user'@'localhost' IDENTIFIED BY 'market_pass';\""
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e \"GRANT ALL PRIVILEGES ON market_monitor.* TO 'market_user'@'localhost';\""
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo mysql -e 'FLUSH PRIVILEGES;'"
 
     - name: Deploy backend
       run: |
