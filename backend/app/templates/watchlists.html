@@ -1,0 +1,180 @@
+{% extends "base.html" %}
+{% block title %}Watchlists - Market Monitor{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0">My Watchlists</h4>
+        <button class="btn btn-success btn-sm" onclick="showCreateModal()"><i class="bi bi-plus-lg me-1"></i>New Watchlist</button>
+    </div>
+
+    <div class="row g-3" id="watchlistCards"></div>
+
+    <!-- Watchlist detail panel -->
+    <div id="watchlistDetail" class="mt-4" style="display:none;">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" id="detailName"></h5>
+                <div>
+                    <button class="btn btn-outline-success btn-sm me-1" onclick="showAddTickerModal()"><i class="bi bi-plus-lg"></i> Add Stock</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteWatchlist()"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="detailItems"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Watchlist Modal -->
+<div class="modal fade" id="createModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">New Watchlist</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" id="newWatchlistName" placeholder="Watchlist name">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-success" onclick="createWatchlist()">Create</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Ticker Modal -->
+<div class="modal fade" id="addTickerModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content bg-dark">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Add Stock</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" id="addTickerSymbol" placeholder="Ticker symbol (e.g. AAPL)" style="text-transform:uppercase;">
+            </div>
+            <div class="modal-footer border-secondary">
+                <button class="btn btn-success" onclick="addTicker()">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedWatchlistId = null;
+let createModalInstance, addTickerModalInstance;
+
+async function loadWatchlists() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    const resp = await apiFetch("/api/watchlists");
+    const data = resp ? await resp.json() : { watchlists: [] };
+    const container = document.getElementById("watchlistCards");
+
+    if (data.watchlists.length === 0) {
+        container.innerHTML = '<div class="col"><p class="text-muted">No watchlists yet. Create one to get started!</p></div>';
+    } else {
+        container.innerHTML = data.watchlists.map(wl => `
+            <div class="col-md-4">
+                <div class="card stat-card watchlist-item" onclick="selectWatchlist(${wl.id}, '${wl.name.replace(/'/g, "\\'")}')">
+                    <div class="card-body">
+                        <h6><i class="bi bi-eye text-success me-2"></i>${wl.name}</h6>
+                        <span class="badge bg-secondary">${wl.item_count} stocks</span>
+                    </div>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+}
+
+async function selectWatchlist(id, name) {
+    selectedWatchlistId = id;
+    document.getElementById("detailName").textContent = name;
+    document.getElementById("watchlistDetail").style.display = "";
+    document.getElementById("detailItems").innerHTML = '<div class="spinner-border spinner-border-sm text-success"></div>';
+
+    const resp = await apiFetch(`/api/watchlists/${id}/items`);
+    const data = resp ? await resp.json() : { items: [] };
+
+    if (data.items.length === 0) {
+        document.getElementById("detailItems").innerHTML = '<p class="text-muted">No stocks in this watchlist yet.</p>';
+    } else {
+        document.getElementById("detailItems").innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-dark table-hover mb-0">
+                    <thead><tr><th>Symbol</th><th>Name</th><th>Sector</th><th></th></tr></thead>
+                    <tbody>
+                        ${data.items.map(item => `
+                            <tr>
+                                <td><a href="/stock/${item.symbol}" class="text-success fw-bold text-decoration-none">${item.symbol}</a></td>
+                                <td>${item.name || item.symbol}</td>
+                                <td><span class="text-muted">${item.sector || '--'}</span></td>
+                                <td><button class="btn btn-outline-danger btn-sm" onclick="removeTicker('${item.symbol}')"><i class="bi bi-x"></i></button></td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+}
+
+function showCreateModal() {
+    document.getElementById("newWatchlistName").value = "";
+    createModalInstance = new bootstrap.Modal(document.getElementById("createModal"));
+    createModalInstance.show();
+}
+
+async function createWatchlist() {
+    const name = document.getElementById("newWatchlistName").value.trim();
+    if (!name) return;
+    await apiFetch("/api/watchlists", { method: "POST", body: JSON.stringify({ name }) });
+    createModalInstance.hide();
+    loadWatchlists();
+}
+
+async function deleteWatchlist() {
+    if (!selectedWatchlistId || !confirm("Delete this watchlist?")) return;
+    await apiFetch(`/api/watchlists/${selectedWatchlistId}`, { method: "DELETE" });
+    selectedWatchlistId = null;
+    document.getElementById("watchlistDetail").style.display = "none";
+    loadWatchlists();
+}
+
+function showAddTickerModal() {
+    document.getElementById("addTickerSymbol").value = "";
+    addTickerModalInstance = new bootstrap.Modal(document.getElementById("addTickerModal"));
+    addTickerModalInstance.show();
+}
+
+async function addTicker() {
+    const symbol = document.getElementById("addTickerSymbol").value.trim().toUpperCase();
+    if (!symbol || !selectedWatchlistId) return;
+    await apiFetch(`/api/watchlists/${selectedWatchlistId}/items`, { method: "POST", body: JSON.stringify({ symbol }) });
+    addTickerModalInstance.hide();
+    selectWatchlist(selectedWatchlistId, document.getElementById("detailName").textContent);
+    loadWatchlists();
+}
+
+async function removeTicker(symbol) {
+    if (!selectedWatchlistId) return;
+    await apiFetch(`/api/watchlists/${selectedWatchlistId}/items/${symbol}`, { method: "DELETE" });
+    selectWatchlist(selectedWatchlistId, document.getElementById("detailName").textContent);
+    loadWatchlists();
+}
+
+loadWatchlists();
+</script>
+{% endblock %}

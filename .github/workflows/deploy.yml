@@ -23,8 +23,7 @@ jobs:
     - name: Deploy backend
       run: |
         ssh ubuntu@${{ secrets.SERVER_IP }} "mkdir -p ~/market-monitor/backend"
-        scp -r backend/ ubuntu@${{ secrets.SERVER_IP }}:~/market-monitor/
-        ssh ubuntu@${{ secrets.SERVER_IP }} "rm -f ~/market-monitor/backend/market_monitor.db"
+        scp -r backend/app/ backend/run.py backend/schema.sql backend/sample_data.sql backend/requirements.txt ubuntu@${{ secrets.SERVER_IP }}:~/market-monitor/backend/
         ssh ubuntu@${{ secrets.SERVER_IP }} "cd ~/market-monitor/backend && python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
 
     - name: Setup and restart service

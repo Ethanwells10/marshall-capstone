@@ -1,0 +1,48 @@
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background-color: #1a1d23;
+}
+main { flex: 1; }
+
+.card {
+    border: 1px solid #2d3238;
+    background-color: #22262c;
+}
+.card-header { background-color: #2a2e35; }
+
+.text-gain { color: #22c55e; }
+.text-loss { color: #ef4444; }
+
+.ticker-badge {
+    font-family: monospace;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.stat-card {
+    transition: transform 0.15s;
+}
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.watchlist-item {
+    cursor: pointer;
+    transition: background-color 0.15s;
+}
+.watchlist-item:hover {
+    background-color: #2a2e35;
+}
+
+#tickerSearch::placeholder {
+    font-size: 0.85rem;
+}
+
+.spinner-page {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 200px;
+}

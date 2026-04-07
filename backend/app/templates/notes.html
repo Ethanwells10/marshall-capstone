@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Notes - Market Monitor{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;">
+    <h4 class="mb-4">All Notes</h4>
+    <div id="notesContainer"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadAllNotes() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    const resp = await apiFetch("/api/notes");
+    const data = resp ? await resp.json() : { notes: [] };
+    const container = document.getElementById("notesContainer");
+
+    if (data.notes.length === 0) {
+        container.innerHTML = '<p class="text-muted">No notes yet. Visit a stock page to add notes.</p>';
+    } else {
+        container.innerHTML = data.notes.map(n => `
+            <div class="card mb-2">
+                <div class="card-body py-2 d-flex justify-content-between align-items-start">
+                    <div>
+                        <a href="/stock/${n.ticker_symbol}" class="text-success fw-bold text-decoration-none">${n.ticker_symbol}</a>
+                        <span class="ms-2">${n.note_text}</span>
+                        <br><small class="text-muted">${n.created_at || ""}</small>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+}
+
+async function deleteNote(id) {
+    await apiFetch(`/api/notes/${id}`, { method: "DELETE" });
+    loadAllNotes();
+}
+
+loadAllNotes();
+</script>
+{% endblock %}
