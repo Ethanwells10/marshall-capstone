@@ -28,7 +28,7 @@ jobs:
 
     - name: Setup and restart service
       run: |
-        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo tee /etc/systemd/system/market-monitor.service > /dev/null << 'UNIT'
+        ssh ubuntu@${{ secrets.SERVER_IP }} "sudo tee /etc/systemd/system/market-monitor.service > /dev/null << UNIT
         [Unit]
         Description=Market Monitor Flask App
         After=network.target
@@ -36,6 +36,9 @@ jobs:
         [Service]
         User=ubuntu
         WorkingDirectory=/home/ubuntu/market-monitor/backend
+        Environment=ALPHA_VANTAGE_KEY=${{ secrets.ALPHA_VANTAGE_KEY }}
+        Environment=NEWS_API_KEY=${{ secrets.NEWS_API_KEY }}
+        Environment=SECRET_KEY=${{ secrets.SECRET_KEY }}
         ExecStart=/home/ubuntu/market-monitor/backend/venv/bin/gunicorn --bind 127.0.0.1:5000 'app:create_app()'
         Restart=always
 
