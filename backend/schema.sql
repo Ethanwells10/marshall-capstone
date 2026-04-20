@@ -44,6 +44,20 @@ CREATE TABLE IF NOT EXISTS user_notes (
     FOREIGN KEY (ticker_symbol) REFERENCES tickers(symbol) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS portfolio_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    ticker_symbol TEXT NOT NULL,
+    transaction_type TEXT NOT NULL CHECK(transaction_type IN ('buy', 'sell')),
+    shares REAL NOT NULL,
+    price_per_share REAL NOT NULL,
+    transaction_date TEXT NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (ticker_symbol) REFERENCES tickers(symbol) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS api_cache (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cache_key TEXT UNIQUE NOT NULL,

@@ -19,17 +19,19 @@ def create_app():
     from .routes.stocks import stocks_bp
     from .routes.notes import notes_bp
     from .routes.market import market_bp
+    from .routes.portfolio import portfolio_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/auth")
     app.register_blueprint(watchlists_bp, url_prefix="/api/watchlists")
     app.register_blueprint(stocks_bp, url_prefix="/api/stocks")
     app.register_blueprint(notes_bp, url_prefix="/api/notes")
     app.register_blueprint(market_bp, url_prefix="/api/market")
+    app.register_blueprint(portfolio_bp, url_prefix="/api/portfolio")
 
     # Frontend page routes
     @app.route("/")
     def index():
-        return redirect("/login")
+        return render_template("about.html")
 
     @app.route("/login")
     def login_page():
@@ -54,6 +56,14 @@ def create_app():
     @app.route("/profile")
     def profile_page():
         return render_template("profile.html")
+
+    @app.route("/browse")
+    def browse_page():
+        return render_template("browse.html")
+
+    @app.route("/portfolio")
+    def portfolio_page():
+        return render_template("portfolio.html")
 
     @app.route("/search")
     def search_page():

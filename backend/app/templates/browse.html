@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Browse Stocks - Market Monitor{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;" class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h4 class="mb-0"><i class="bi bi-collection text-success me-2"></i>Browse Stocks</h4>
+        <div class="d-flex gap-2 align-items-center">
+            <select class="form-select form-select-sm" id="filterSector" style="width:auto;" onchange="applyFilters()">
+                <option value="">All Sectors</option>
+            </select>
+            <select class="form-select form-select-sm" id="filterExchange" style="width:auto;" onchange="applyFilters()">
+                <option value="">All Exchanges</option>
+            </select>
+            <small class="text-muted" id="resultCount"></small>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="sortBy('symbol')">Symbol <i class="bi bi-chevron-expand text-muted"></i></th>
+                            <th class="sortable" onclick="sortBy('name')">Company <i class="bi bi-chevron-expand text-muted"></i></th>
+                            <th class="sortable" onclick="sortBy('exchange')">Exchange <i class="bi bi-chevron-expand text-muted"></i></th>
+                            <th class="sortable" onclick="sortBy('sector')">Sector <i class="bi bi-chevron-expand text-muted"></i></th>
+                            <th class="sortable" onclick="sortBy('industry')">Industry <i class="bi bi-chevron-expand text-muted"></i></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="stocksTable"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { color: #22c55e !important; }
+</style>
+<script>
+let allStocks = [];
+let sortField = "symbol";
+let sortDir = 1;
+
+async function loadBrowse() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    const resp = await apiFetch("/api/stocks/browse");
+    const data = resp ? await resp.json() : { tickers: [] };
+    allStocks = data.tickers;
+
+    // Populate filter dropdowns
+    const sectors = [...new Set(allStocks.map(s => s.sector).filter(Boolean))].sort();
+    const exchanges = [...new Set(allStocks.map(s => s.exchange).filter(Boolean))].sort();
+
+    const sectorSelect = document.getElementById("filterSector");
+    sectors.forEach(s => { sectorSelect.innerHTML += `<option value="${s}">${s}</option>`; });
+
+    const exchangeSelect = document.getElementById("filterExchange");
+    exchanges.forEach(e => { exchangeSelect.innerHTML += `<option value="${e}">${e}</option>`; });
+
+    applyFilters();
+
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+}
+
+function applyFilters() {
+    const sector = document.getElementById("filterSector").value;
+    const exchange = document.getElementById("filterExchange").value;
+
+    let filtered = allStocks;
+    if (sector) filtered = filtered.filter(s => s.sector === sector);
+    if (exchange) filtered = filtered.filter(s => s.exchange === exchange);
+
+    // Sort
+    filtered.sort((a, b) => {
+        const av = (a[sortField] || "").toLowerCase();
+        const bv = (b[sortField] || "").toLowerCase();
+        return av < bv ? -sortDir : av > bv ? sortDir : 0;
+    });
+
+    document.getElementById("resultCount").textContent = filtered.length + " stocks";
+    renderTable(filtered);
+}
+
+function renderTable(stocks) {
+    const tbody = document.getElementById("stocksTable");
+    if (stocks.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No stocks match your filters.</td></tr>';
+        return;
+    }
+    tbody.innerHTML = stocks.map(s => `
+        <tr>
+            <td><a href="/stock/${s.symbol}" class="text-success fw-bold text-decoration-none ticker-badge">${s.symbol}</a></td>
+            <td class="text-light">${s.name}</td>
+            <td><span class="badge bg-secondary">${s.exchange || '--'}</span></td>
+            <td class="text-muted">${s.sector || '--'}</td>
+            <td class="text-muted small">${s.industry || '--'}</td>
+            <td class="text-end"><a href="/stock/${s.symbol}" class="btn btn-outline-success btn-sm py-0 px-2">View</a></td>
+        </tr>
+    `).join("");
+}
+
+function sortBy(field) {
+    if (sortField === field) {
+        sortDir *= -1;
+    } else {
+        sortField = field;
+        sortDir = 1;
+    }
+    applyFilters();
+}
+
+loadBrowse();
+</script>
+{% endblock %}

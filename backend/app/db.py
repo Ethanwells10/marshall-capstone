@@ -70,5 +70,23 @@ def init_db(app):
                 db.execute("INSERT OR IGNORE INTO user_notes (user_id, ticker_symbol, note_text) VALUES (?, 'JPM', 'Interest rate environment favorable. Watch credit card delinquency trends.')", (admin_id,))
                 db.execute("INSERT OR IGNORE INTO user_notes (user_id, ticker_symbol, note_text) VALUES (?, 'GOOGL', 'Search ad revenue still dominant. Cloud segment approaching profitability.')", (admin_id,))
 
+                # Sample portfolio transactions
+                portfolio_data = [
+                    (admin_id, 'AAPL', 'buy', 15, 178.50, '2025-09-15', 'Initial position'),
+                    (admin_id, 'AAPL', 'buy', 10, 185.20, '2025-11-20', 'Added on dip'),
+                    (admin_id, 'MSFT', 'buy', 12, 415.00, '2025-10-01', 'Cloud growth thesis'),
+                    (admin_id, 'NVDA', 'buy', 8, 520.75, '2025-08-10', 'AI play'),
+                    (admin_id, 'NVDA', 'buy', 5, 480.00, '2025-12-05', 'Averaged down'),
+                    (admin_id, 'GOOGL', 'buy', 20, 165.30, '2025-10-15', 'Undervalued vs peers'),
+                    (admin_id, 'JPM', 'buy', 10, 198.40, '2025-11-01', 'Rate environment play'),
+                    (admin_id, 'AMZN', 'buy', 8, 195.60, '2026-01-10', 'AWS momentum'),
+                ]
+                for tx in portfolio_data:
+                    db.execute("""
+                        INSERT OR IGNORE INTO portfolio_transactions
+                        (user_id, ticker_symbol, transaction_type, shares, price_per_share, transaction_date, notes)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, tx)
+
         db.commit()
         db.close()

@@ -11,6 +11,20 @@ ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 
+@stocks_bp.route("/browse", methods=["GET"])
+def browse_stocks():
+    db = get_db()
+    rows = db.execute("""
+        SELECT symbol, name, exchange, sector, industry
+        FROM tickers
+        WHERE name IS NOT NULL AND name != symbol
+        ORDER BY symbol
+    """).fetchall()
+
+    tickers = [{"symbol": r["symbol"], "name": r["name"], "exchange": r["exchange"], "sector": r["sector"], "industry": r["industry"]} for r in rows]
+    return jsonify({"tickers": tickers})
+
+
 @stocks_bp.route("/search", methods=["GET"])
 def search_stocks():
     q = request.args.get("q", "").strip().upper()

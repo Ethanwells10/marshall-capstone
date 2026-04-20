@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+{% block title %}Portfolio - Market Monitor{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;" class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+        <h4 class="mb-0"><i class="bi bi-wallet2 text-success me-2"></i>Portfolio</h4>
+        <button class="btn btn-success btn-sm" onclick="showAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Transaction</button>
+    </div>
+
+    <!-- Portfolio Summary -->
+    <div class="row g-3 mb-4">
+        <div class="col-sm-4">
+            <div class="card">
+                <div class="card-body text-center py-3">
+                    <div class="stat-label">Total Invested</div>
+                    <div class="stat-value text-light" id="totalCost">--</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card">
+                <div class="card-body text-center py-3">
+                    <div class="stat-label">Holdings</div>
+                    <div class="stat-value text-light" id="totalHoldings">--</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-4">
+            <div class="card">
+                <div class="card-body text-center py-3">
+                    <div class="stat-label">Positions</div>
+                    <div class="stat-value text-light" id="totalPositions">--</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Holdings Table -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">Current Holdings</div>
+                <div class="card-body p-0" id="holdingsContainer"></div>
+            </div>
+
+            <!-- Recent Transactions -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>Transaction History</span>
+                    <small class="text-muted" id="txCount"></small>
+                </div>
+                <div class="card-body p-0" id="transactionsContainer"></div>
+            </div>
+        </div>
+
+        <!-- Allocation Chart -->
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">Allocation</div>
+                <div class="card-body">
+                    <canvas id="allocationChart"></canvas>
+                    <div id="allocationEmpty" style="display:none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Transaction Modal -->
+<div class="modal fade" id="addModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Transaction</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Type</label>
+                        <select class="form-select" id="txType">
+                            <option value="buy">Buy</option>
+                            <option value="sell">Sell</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Symbol</label>
+                        <input type="text" class="form-control" id="txSymbol" placeholder="e.g. AAPL" style="text-transform:uppercase;">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Shares</label>
+                        <input type="number" class="form-control" id="txShares" step="0.01" min="0.01" placeholder="10">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Price per Share ($)</label>
+                        <input type="number" class="form-control" id="txPrice" step="0.01" min="0.01" placeholder="150.00">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Date</label>
+                        <input type="date" class="form-control" id="txDate">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-muted">Total</label>
+                        <div class="form-control bg-transparent text-light" id="txTotal" style="border-color:#2d3544;">$0.00</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label small text-muted">Notes (optional)</label>
+                        <input type="text" class="form-control" id="txNotes" placeholder="e.g. Earnings play">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success btn-sm" onclick="addTransaction()"><i class="bi bi-check-lg me-1"></i>Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let addModalInstance;
+let allocChart = null;
+
+async function loadPortfolio() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    const resp = await apiFetch("/api/portfolio");
+    const data = resp ? await resp.json() : { holdings: [], transactions: [] };
+
+    // Summary stats
+    const totalCost = data.holdings.reduce((sum, h) => sum + h.total_cost, 0);
+    document.getElementById("totalCost").textContent = formatPrice(totalCost);
+    document.getElementById("totalHoldings").textContent = data.holdings.reduce((sum, h) => sum + h.shares, 0).toFixed(2) + " shares";
+    document.getElementById("totalPositions").textContent = data.holdings.length;
+
+    // Holdings table
+    const hContainer = document.getElementById("holdingsContainer");
+    if (data.holdings.length === 0) {
+        hContainer.innerHTML = '<div class="p-4">' + emptyState("bi-wallet2", "No holdings yet", "Add a buy transaction to start tracking your portfolio.") + '</div>';
+    } else {
+        hContainer.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0">
+                    <thead><tr><th>Symbol</th><th>Shares</th><th>Avg Cost</th><th>Total Invested</th><th></th></tr></thead>
+                    <tbody>
+                        ${data.holdings.map(h => `
+                            <tr>
+                                <td>
+                                    <a href="/stock/${h.symbol}" class="text-success fw-bold text-decoration-none ticker-badge">${h.symbol}</a>
+                                    <br><small class="text-muted">${h.name || ''}</small>
+                                </td>
+                                <td class="text-light">${h.shares}</td>
+                                <td class="text-light">${formatPrice(h.avg_cost)}</td>
+                                <td class="text-light">${formatPrice(h.total_cost)}</td>
+                                <td><span class="badge bg-secondary">${h.sector || 'N/A'}</span></td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    // Transactions
+    const tContainer = document.getElementById("transactionsContainer");
+    document.getElementById("txCount").textContent = data.transactions.length + " total";
+    if (data.transactions.length === 0) {
+        tContainer.innerHTML = '<div class="p-4 text-center text-muted">No transactions recorded.</div>';
+    } else {
+        tContainer.innerHTML = `
+            <div class="table-responsive">
+                <table class="table table-dark table-hover align-middle mb-0" style="font-size:0.9rem;">
+                    <thead><tr><th>Date</th><th>Type</th><th>Symbol</th><th>Shares</th><th>Price</th><th>Total</th><th></th></tr></thead>
+                    <tbody>
+                        ${data.transactions.slice(0, 20).map(t => `
+                            <tr>
+                                <td class="text-muted">${t.transaction_date}</td>
+                                <td><span class="badge ${t.transaction_type === 'buy' ? 'bg-success' : 'bg-danger'}">${t.transaction_type.toUpperCase()}</span></td>
+                                <td><a href="/stock/${t.ticker_symbol}" class="text-success text-decoration-none ticker-badge">${t.ticker_symbol}</a></td>
+                                <td class="text-light">${t.shares}</td>
+                                <td class="text-light">${formatPrice(t.price_per_share)}</td>
+                                <td class="text-light">${formatPrice(t.shares * t.price_per_share)}</td>
+                                <td><button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteTx(${t.id})"><i class="bi bi-trash"></i></button></td>
+                            </tr>
+                        `).join("")}
+                    </tbody>
+                </table>
+            </div>`;
+    }
+
+    // Allocation pie chart
+    if (data.holdings.length > 0) {
+        document.getElementById("allocationEmpty").style.display = "none";
+        const labels = data.holdings.map(h => h.symbol);
+        const values = data.holdings.map(h => h.total_cost);
+        const colors = ["#22c55e", "#3b82f6", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#f97316", "#14b8a6", "#6366f1"];
+
+        if (allocChart) allocChart.destroy();
+        allocChart = new Chart(document.getElementById("allocationChart"), {
+            type: "doughnut",
+            data: {
+                labels,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors.slice(0, labels.length),
+                    borderColor: "#0f1117",
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: "bottom", labels: { color: "#94a3b8", padding: 12, font: { size: 11 } } },
+                    tooltip: {
+                        backgroundColor: "#1a1f2a",
+                        borderColor: "#2d3544",
+                        borderWidth: 1,
+                        bodyColor: "#f1f5f9",
+                        callbacks: { label: ctx => `${ctx.label}: ${formatPrice(ctx.raw)} (${((ctx.raw/totalCost)*100).toFixed(1)}%)` }
+                    }
+                }
+            }
+        });
+    } else {
+        document.getElementById("allocationChart").style.display = "none";
+        document.getElementById("allocationEmpty").style.display = "";
+        document.getElementById("allocationEmpty").innerHTML = emptyState("bi-pie-chart", "No data", "Allocation chart appears when you have holdings.");
+    }
+
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+}
+
+function showAddModal() {
+    document.getElementById("txSymbol").value = "";
+    document.getElementById("txShares").value = "";
+    document.getElementById("txPrice").value = "";
+    document.getElementById("txDate").value = new Date().toISOString().split("T")[0];
+    document.getElementById("txNotes").value = "";
+    document.getElementById("txTotal").textContent = "$0.00";
+    addModalInstance = new bootstrap.Modal(document.getElementById("addModal"));
+    addModalInstance.show();
+}
+
+// Auto-calculate total
+document.getElementById("txShares").addEventListener("input", updateTotal);
+document.getElementById("txPrice").addEventListener("input", updateTotal);
+function updateTotal() {
+    const shares = parseFloat(document.getElementById("txShares").value) || 0;
+    const price = parseFloat(document.getElementById("txPrice").value) || 0;
+    document.getElementById("txTotal").textContent = formatPrice(shares * price);
+}
+
+async function addTransaction() {
+    const symbol = document.getElementById("txSymbol").value.trim().toUpperCase();
+    const shares = parseFloat(document.getElementById("txShares").value);
+    const price = parseFloat(document.getElementById("txPrice").value);
+    const date = document.getElementById("txDate").value;
+    const type = document.getElementById("txType").value;
+    const notes = document.getElementById("txNotes").value.trim();
+
+    if (!symbol || !shares || !price || !date) {
+        showToast("Please fill in all required fields", "error");
+        return;
+    }
+
+    const resp = await apiFetch("/api/portfolio", {
+        method: "POST",
+        body: JSON.stringify({
+            ticker_symbol: symbol,
+            transaction_type: type,
+            shares,
+            price_per_share: price,
+            transaction_date: date,
+            notes
+        })
+    });
+
+    if (resp && resp.ok) {
+        addModalInstance.hide();
+        showToast(`${type === 'buy' ? 'Bought' : 'Sold'} ${shares} ${symbol} @ ${formatPrice(price)}`, "success");
+        loadPortfolio();
+    } else {
+        const data = resp ? await resp.json() : {};
+        showToast(data.error || "Failed to add transaction", "error");
+    }
+}
+
+async function deleteTx(id) {
+    if (!confirm("Delete this transaction?")) return;
+    await apiFetch(`/api/portfolio/${id}`, { method: "DELETE" });
+    showToast("Transaction deleted", "info");
+    loadPortfolio();
+}
+
+loadPortfolio();
+</script>
+{% endblock %}
