@@ -3,10 +3,46 @@ from ..db import get_db
 from ..services.cache import get_cached, set_cached
 import requests
 import os
+import time
 
 market_bp = Blueprint("market", __name__)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+
+
+def fetch_quote(symbol, db):
+    """Fetch a quote from cache or Alpha Vantage with rate limit handling."""
+    cache_key = f"alphavantage:quote:{symbol}"
+    cached = get_cached(db, cache_key)
+    if cached:
+        return cached
+
+    if not ALPHA_VANTAGE_KEY:
+        return None
+
+    try:
+        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
+        resp = requests.get(url, timeout=10)
+        data = resp.json()
+
+        # Rate limit or info message — skip
+        if "Information" in data or "Note" in data:
+            return None
+
+        gq = data.get("Global Quote", {})
+        if gq and gq.get("05. price"):
+            quote = {
+                "price": float(gq.get("05. price", 0)),
+                "change": float(gq.get("09. change", 0)),
+                "change_percent": float(gq.get("10. change percent", "0%").replace("%", "")),
+                "volume": int(gq.get("06. volume", 0))
+            }
+            set_cached(db, cache_key, quote, minutes=60)
+            return quote
+    except Exception:
+        pass
+
+    return None
 
 
 @market_bp.route("/overview", methods=["GET"])
@@ -21,28 +57,18 @@ def overview():
         ("DIA", "Dow Jones ETF")
     ]
 
-    for symbol, name in index_symbols:
-        cache_key = f"alphavantage:quote:{symbol}"
-        cached = get_cached(db, cache_key)
-        if cached:
-            indices.append({"symbol": symbol, "name": name, **cached})
-        elif ALPHA_VANTAGE_KEY:
-            try:
-                url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-                resp = requests.get(url, timeout=10)
-                data = resp.json()
-                gq = data.get("Global Quote", {})
-                if gq:
-                    quote = {
-                        "price": float(gq.get("05. price", 0)),
-                        "change_percent": float(gq.get("10. change percent", "0%").replace("%", ""))
-                    }
-                    indices.append({"symbol": symbol, "name": name, **quote})
-                    set_cached(db, cache_key, quote, minutes=15)
-            except Exception:
-                indices.append({"symbol": symbol, "name": name, "price": None, "change_percent": None})
+    for i, (symbol, name) in enumerate(index_symbols):
+        quote = fetch_quote(symbol, db)
+        if quote:
+            indices.append({"symbol": symbol, "name": name, **quote})
         else:
             indices.append({"symbol": symbol, "name": name, "price": None, "change_percent": None})
+
+        # Rate limit: wait between uncached API calls
+        if i < len(index_symbols) - 1:
+            cache_key = f"alphavantage:quote:{index_symbols[i+1][0]}"
+            if not get_cached(db, cache_key):
+                time.sleep(1.5)
 
     # Get crypto data from CoinGecko
     crypto = []

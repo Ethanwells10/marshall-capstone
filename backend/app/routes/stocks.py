@@ -3,6 +3,7 @@ from ..db import get_db
 from ..services.cache import get_cached, set_cached
 import requests
 import os
+import time
 
 stocks_bp = Blueprint("stocks", __name__)
 
@@ -56,16 +57,21 @@ def get_stock(symbol):
             url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
             resp = requests.get(url, timeout=10)
             data = resp.json()
-            gq = data.get("Global Quote", {})
-            if gq:
-                quote = {
-                    "price": float(gq.get("05. price", 0)),
-                    "change": float(gq.get("09. change", 0)),
-                    "change_percent": gq.get("10. change percent", "0%").replace("%", ""),
-                    "volume": int(gq.get("06. volume", 0))
-                }
-                stock_data["quote"] = quote
-                set_cached(db, cache_key, quote, minutes=15)
+
+            # Handle rate limit
+            if "Information" in data or "Note" in data:
+                stock_data["rate_limited"] = True
+            else:
+                gq = data.get("Global Quote", {})
+                if gq and gq.get("05. price"):
+                    quote = {
+                        "price": float(gq.get("05. price", 0)),
+                        "change": float(gq.get("09. change", 0)),
+                        "change_percent": gq.get("10. change percent", "0%").replace("%", ""),
+                        "volume": int(gq.get("06. volume", 0))
+                    }
+                    stock_data["quote"] = quote
+                    set_cached(db, cache_key, quote, minutes=60)
         except Exception:
             pass
 
@@ -94,6 +100,10 @@ def get_stock_history(symbol):
             url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
             resp = requests.get(url, timeout=10)
             data = resp.json()
+
+            # Handle rate limit
+            if "Information" in data or "Note" in data:
+                return jsonify({"symbol": symbol, "range": time_range, "prices": [], "rate_limited": True})
 
             time_series_key = "Time Series (Daily)" if function == "TIME_SERIES_DAILY" else "Weekly Time Series"
             series = data.get(time_series_key, {})
