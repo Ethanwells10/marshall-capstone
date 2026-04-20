@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Profile - Market Monitor{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;" class="fade-in">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <h4 class="mb-4"><i class="bi bi-person-circle text-success me-2"></i>Profile</h4>
+
+            <!-- Account Info -->
+            <div class="card mb-4">
+                <div class="card-header">Account Information</div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 mb-4">
+                        <div class="profile-avatar" id="avatar"></div>
+                        <div>
+                            <h5 class="mb-1 text-light" id="profileEmail"></h5>
+                            <small class="text-muted"><i class="bi bi-calendar me-1"></i>Member since <span id="profileDate"></span></small>
+                        </div>
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-sm-4">
+                            <div class="text-center p-3 rounded" style="background-color:#1a1f2a;">
+                                <div class="stat-value text-success" id="statWatchlists">--</div>
+                                <div class="stat-label">Watchlists</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-center p-3 rounded" style="background-color:#1a1f2a;">
+                                <div class="stat-value text-success" id="statStocks">--</div>
+                                <div class="stat-label">Stocks Tracked</div>
+                            </div>
+                        </div>
+                        <div class="col-sm-4">
+                            <div class="text-center p-3 rounded" style="background-color:#1a1f2a;">
+                                <div class="stat-value text-success" id="statNotes">--</div>
+                                <div class="stat-label">Notes</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Change Password -->
+            <div class="card">
+                <div class="card-header">Change Password</div>
+                <div class="card-body">
+                    <form id="passwordForm" onsubmit="changePassword(event)">
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Current Password</label>
+                            <input type="password" class="form-control" id="currentPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">New Password</label>
+                            <input type="password" class="form-control" id="newPassword" minlength="6" required>
+                            <div class="form-text">At least 6 characters</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-muted">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirmPassword" minlength="6" required>
+                        </div>
+                        <button type="submit" class="btn btn-success"><i class="bi bi-shield-check me-1"></i>Update Password</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadProfile() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    document.getElementById("profileEmail").textContent = user.email;
+    document.getElementById("avatar").textContent = user.email.charAt(0).toUpperCase();
+    document.getElementById("profileDate").textContent = user.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A";
+
+    // Load stats
+    const [wlResp, notesResp] = await Promise.all([
+        apiFetch("/api/watchlists"),
+        apiFetch("/api/notes")
+    ]);
+
+    const wlData = wlResp ? await wlResp.json() : { watchlists: [] };
+    const notesData = notesResp ? await notesResp.json() : { notes: [] };
+
+    document.getElementById("statWatchlists").textContent = wlData.watchlists.length;
+    document.getElementById("statStocks").textContent = wlData.watchlists.reduce((sum, wl) => sum + wl.item_count, 0);
+    document.getElementById("statNotes").textContent = notesData.notes.length;
+
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+}
+
+async function changePassword(e) {
+    e.preventDefault();
+    const newPw = document.getElementById("newPassword").value;
+    const confirmPw = document.getElementById("confirmPassword").value;
+
+    if (newPw !== confirmPw) {
+        showToast("Passwords do not match", "error");
+        return;
+    }
+
+    const resp = await apiFetch("/api/auth/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+            current_password: document.getElementById("currentPassword").value,
+            new_password: newPw
+        })
+    });
+
+    if (resp && resp.ok) {
+        showToast("Password updated successfully", "success");
+        document.getElementById("passwordForm").reset();
+    } else {
+        const data = resp ? await resp.json() : {};
+        showToast(data.error || "Failed to update password", "error");
+    }
+}
+
+loadProfile();
+</script>
+{% endblock %}

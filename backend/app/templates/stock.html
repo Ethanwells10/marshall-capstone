@@ -10,62 +10,70 @@
     <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
 </div>
 
-<div id="pageContent" style="display:none;">
+<div id="pageContent" style="display:none;" class="fade-in">
     <!-- Stock Header -->
-    <div class="d-flex align-items-center mb-4">
-        <a href="/dashboard" class="btn btn-outline-secondary btn-sm me-3"><i class="bi bi-arrow-left"></i></a>
-        <div>
-            <h4 class="mb-0"><span class="ticker-badge text-success">{{ symbol }}</span> <span id="stockName" class="text-light"></span></h4>
+    <div class="d-flex align-items-center mb-4 flex-wrap gap-3">
+        <a href="javascript:history.back()" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left"></i></a>
+        <div class="flex-grow-1">
+            <h4 class="mb-0">
+                <span class="ticker-badge text-success">{{ symbol }}</span>
+                <span class="text-light ms-2" id="stockName"></span>
+            </h4>
             <small class="text-muted" id="stockMeta"></small>
         </div>
-        <div class="ms-auto text-end">
-            <h3 class="mb-0" id="stockPrice">--</h3>
+        <div class="text-end">
+            <div class="stat-value" id="stockPrice">--</div>
             <span id="stockChange"></span>
         </div>
     </div>
 
     <!-- Chart -->
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <span>Price History</span>
-            <div class="btn-group btn-group-sm">
-                <button class="btn btn-outline-success active" onclick="loadChart('1W', this)">1W</button>
-                <button class="btn btn-outline-success" onclick="loadChart('1M', this)">1M</button>
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <span><i class="bi bi-graph-up me-2"></i>Price History</span>
+            <div class="btn-group btn-group-sm" id="chartBtns">
+                <button class="btn btn-outline-success" onclick="loadChart('1W', this)">1W</button>
+                <button class="btn btn-outline-success active" onclick="loadChart('1M', this)">1M</button>
                 <button class="btn btn-outline-success" onclick="loadChart('3M', this)">3M</button>
                 <button class="btn btn-outline-success" onclick="loadChart('1Y', this)">1Y</button>
             </div>
         </div>
-        <div class="card-body">
-            <canvas id="priceChart" height="100"></canvas>
-            <p class="text-muted text-center mt-2 small" id="chartMsg" style="display:none;">No historical data available. API key may not be configured.</p>
+        <div class="card-body" style="position:relative; min-height:250px;">
+            <div id="chartLoader" class="text-center py-5"><div class="spinner-border spinner-border-sm text-success"></div></div>
+            <canvas id="priceChart" style="display:none;"></canvas>
+            <div class="text-center mt-2 small" id="chartMsg" style="display:none;"></div>
         </div>
     </div>
 
     <div class="row g-4">
         <!-- News -->
-        <div class="col-md-6">
+        <div class="col-lg-6">
             <div class="card h-100">
-                <div class="card-header"><i class="bi bi-newspaper me-2"></i>News</div>
+                <div class="card-header"><i class="bi bi-newspaper me-2"></i>Latest News</div>
                 <div class="card-body" id="newsContainer">
-                    <p class="text-muted">Loading news...</p>
+                    <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-success"></div></div>
                 </div>
             </div>
         </div>
 
         <!-- Notes -->
-        <div class="col-md-6">
+        <div class="col-lg-6">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-journal-text me-2"></i>My Notes</span>
-                    <button class="btn btn-outline-success btn-sm" onclick="showNoteForm()"><i class="bi bi-plus-lg"></i></button>
+                    <button class="btn btn-outline-success btn-sm" onclick="toggleNoteForm()"><i class="bi bi-plus-lg"></i></button>
                 </div>
                 <div class="card-body">
-                    <div id="noteForm" style="display:none;" class="mb-3">
+                    <div id="noteForm" style="display:none;" class="mb-3 fade-in">
                         <textarea class="form-control mb-2" id="noteText" rows="2" placeholder="Add a note about {{ symbol }}..."></textarea>
-                        <button class="btn btn-success btn-sm" onclick="saveNote()">Save</button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('noteForm').style.display='none'">Cancel</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-success btn-sm" onclick="saveNote()"><i class="bi bi-check-lg me-1"></i>Save</button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="toggleNoteForm()">Cancel</button>
+                        </div>
                     </div>
-                    <div id="notesContainer"><p class="text-muted">Loading notes...</p></div>
+                    <div id="notesContainer">
+                        <div class="text-center py-3"><div class="spinner-border spinner-border-sm text-success"></div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -87,46 +95,50 @@ async function loadStock() {
 
     document.getElementById("stockName").textContent = data.name || SYMBOL;
     const parts = [data.exchange, data.sector, data.industry].filter(Boolean);
-    document.getElementById("stockMeta").textContent = parts.join(" | ") || "";
+    document.getElementById("stockMeta").textContent = parts.join(" / ") || "";
 
     if (data.quote) {
         document.getElementById("stockPrice").textContent = formatPrice(data.quote.price);
         document.getElementById("stockChange").innerHTML = formatChange(data.quote.change_percent);
     } else {
         document.getElementById("stockPrice").textContent = "--";
-        document.getElementById("stockChange").innerHTML = '<span class="text-muted small">No live quote available</span>';
+        document.getElementById("stockChange").innerHTML = '<span class="text-muted small">No live quote</span>';
     }
-
-    // Load chart, news, notes in parallel
-    await Promise.all([loadChart("1M"), loadNews(), loadNotes()]);
 
     document.getElementById("pageLoader").style.display = "none";
     document.getElementById("pageContent").style.display = "";
+
+    await Promise.all([loadChart("1M"), loadNews(), loadNotes()]);
 }
 
 async function loadChart(range, btn) {
     if (btn) {
-        document.querySelectorAll(".btn-group .btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll("#chartBtns .btn").forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
     }
 
+    const canvas = document.getElementById("priceChart");
+    const loader = document.getElementById("chartLoader");
+    const msg = document.getElementById("chartMsg");
+    canvas.style.display = "none";
+    loader.style.display = "";
+    msg.style.display = "none";
+
     const resp = await apiFetch(`/api/stocks/${SYMBOL}/history?range=${range}`);
     const data = resp ? await resp.json() : { prices: [] };
-
-    const canvas = document.getElementById("priceChart");
-    const msg = document.getElementById("chartMsg");
+    loader.style.display = "none";
 
     if (data.prices.length === 0) {
-        canvas.style.display = "none";
+        msg.innerHTML = emptyState("bi-graph-up", "No chart data", "Historical price data will appear here when the Alpha Vantage API key is configured.");
         msg.style.display = "";
         return;
     }
     canvas.style.display = "";
-    msg.style.display = "none";
 
     const labels = data.prices.map(p => p.date);
     const prices = data.prices.map(p => p.close);
-    const color = prices[prices.length - 1] >= prices[0] ? "#22c55e" : "#ef4444";
+    const isGain = prices[prices.length - 1] >= prices[0];
+    const color = isGain ? "#22c55e" : "#ef4444";
 
     if (priceChart) priceChart.destroy();
     priceChart = new Chart(canvas, {
@@ -137,21 +149,53 @@ async function loadChart(range, btn) {
                 label: SYMBOL,
                 data: prices,
                 borderColor: color,
-                backgroundColor: color + "20",
+                backgroundColor: color + "15",
                 fill: true,
-                tension: 0.3,
-                pointRadius: 2
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointHoverBackgroundColor: color,
+                pointHoverBorderColor: "#fff",
+                pointHoverBorderWidth: 2,
+                borderWidth: 2.5
             }]
         },
         options: {
             responsive: true,
-            plugins: { legend: { display: false } },
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "#1a1f2a",
+                    borderColor: "#2d3544",
+                    borderWidth: 1,
+                    titleColor: "#94a3b8",
+                    bodyColor: "#f1f5f9",
+                    bodyFont: { weight: "bold", size: 14 },
+                    padding: 12,
+                    displayColors: false,
+                    callbacks: {
+                        label: ctx => "$" + ctx.parsed.y.toFixed(2),
+                        title: ctx => ctx[0].label
+                    }
+                }
+            },
             scales: {
-                x: { grid: { color: "#2d3238" }, ticks: { color: "#888", maxTicksLimit: 8 } },
-                y: { grid: { color: "#2d3238" }, ticks: { color: "#888", callback: v => "$" + v } }
+                x: {
+                    grid: { color: "#1e233022" },
+                    ticks: { color: "#64748b", maxTicksLimit: 6, font: { size: 11 } },
+                    border: { display: false }
+                },
+                y: {
+                    grid: { color: "#1e233044" },
+                    ticks: { color: "#64748b", callback: v => "$" + v, font: { size: 11 } },
+                    border: { display: false }
+                }
             }
         }
     });
+    canvas.parentElement.style.height = "280px";
 }
 
 async function loadNews() {
@@ -160,15 +204,18 @@ async function loadNews() {
     const container = document.getElementById("newsContainer");
 
     if (data.articles.length === 0) {
-        container.innerHTML = '<p class="text-muted">No news available. API key may not be configured.</p>';
+        container.innerHTML = emptyState("bi-newspaper", "No news available", "News articles will appear here when the NewsAPI key is configured.");
         return;
     }
-    container.innerHTML = data.articles.map(a => `
-        <div class="mb-3 pb-2 border-bottom border-secondary">
-            <a href="${a.url}" target="_blank" class="text-light text-decoration-none fw-semibold">${a.title}</a>
-            <br><small class="text-muted">${a.source || ""} ${a.published_at ? "| " + new Date(a.published_at).toLocaleDateString() : ""}</small>
+    container.innerHTML = '<div class="fade-in">' + data.articles.map(a => `
+        <div class="mb-3 pb-3 border-bottom" style="border-color:#1e2330 !important;">
+            <a href="${a.url}" target="_blank" rel="noopener" class="text-light text-decoration-none fw-semibold d-block mb-1" style="line-height:1.4;">${a.title}</a>
+            <div class="d-flex gap-2 align-items-center">
+                <small class="text-muted"><i class="bi bi-building me-1"></i>${a.source || "Unknown"}</small>
+                ${a.published_at ? `<small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(a.published_at)}</small>` : ""}
+            </div>
         </div>
-    `).join("");
+    `).join("") + '</div>';
 }
 
 async function loadNotes() {
@@ -177,36 +224,41 @@ async function loadNotes() {
     const container = document.getElementById("notesContainer");
 
     if (data.notes.length === 0) {
-        container.innerHTML = '<p class="text-muted">No notes yet.</p>';
+        container.innerHTML = emptyState("bi-journal", "No notes yet", "Add your first note about " + SYMBOL + " to track your research.");
         return;
     }
-    container.innerHTML = data.notes.map(n => `
-        <div class="mb-2 p-2 rounded" style="background-color:#2a2e35;">
-            <p class="mb-1">${n.note_text}</p>
-            <div class="d-flex justify-content-between">
-                <small class="text-muted">${n.created_at || ""}</small>
-                <button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+    container.innerHTML = '<div class="fade-in">' + data.notes.map(n => `
+        <div class="mb-2 p-3 rounded" style="background-color:#1a1f2a;">
+            <p class="mb-1 text-light">${n.note_text}</p>
+            <div class="d-flex justify-content-between align-items-center">
+                <small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(n.created_at) || "just now"}</small>
+                <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
             </div>
         </div>
-    `).join("");
+    `).join("") + '</div>';
 }
 
-function showNoteForm() {
-    document.getElementById("noteForm").style.display = "";
-    document.getElementById("noteText").focus();
+function toggleNoteForm() {
+    const form = document.getElementById("noteForm");
+    form.style.display = form.style.display === "none" ? "" : "none";
+    if (form.style.display !== "none") document.getElementById("noteText").focus();
 }
 
 async function saveNote() {
     const text = document.getElementById("noteText").value.trim();
     if (!text) return;
-    await apiFetch("/api/notes", { method: "POST", body: JSON.stringify({ ticker_symbol: SYMBOL, note_text: text }) });
-    document.getElementById("noteText").value = "";
-    document.getElementById("noteForm").style.display = "none";
-    loadNotes();
+    const resp = await apiFetch("/api/notes", { method: "POST", body: JSON.stringify({ ticker_symbol: SYMBOL, note_text: text }) });
+    if (resp && resp.ok) {
+        document.getElementById("noteText").value = "";
+        document.getElementById("noteForm").style.display = "none";
+        showToast("Note saved", "success");
+        loadNotes();
+    }
 }
 
 async function deleteNote(id) {
     await apiFetch(`/api/notes/${id}`, { method: "DELETE" });
+    showToast("Note deleted", "info");
     loadNotes();
 }
 

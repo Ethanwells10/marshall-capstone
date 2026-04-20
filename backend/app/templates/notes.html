@@ -6,8 +6,11 @@
     <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
 </div>
 
-<div id="pageContent" style="display:none;">
-    <h4 class="mb-4">All Notes</h4>
+<div id="pageContent" style="display:none;" class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="bi bi-journal-text text-success me-2"></i>All Notes</h4>
+        <small class="text-muted" id="noteCount"></small>
+    </div>
     <div id="notesContainer"></div>
 </div>
 {% endblock %}
@@ -22,19 +25,35 @@ async function loadAllNotes() {
     const data = resp ? await resp.json() : { notes: [] };
     const container = document.getElementById("notesContainer");
 
+    document.getElementById("noteCount").textContent = data.notes.length + " note" + (data.notes.length !== 1 ? "s" : "");
+
     if (data.notes.length === 0) {
-        container.innerHTML = '<p class="text-muted">No notes yet. Visit a stock page to add notes.</p>';
+        container.innerHTML = emptyState("bi-journal", "No notes yet", 'Visit a stock page to add research notes. <a href="/dashboard" class="text-success">Go to Dashboard</a>');
     } else {
-        container.innerHTML = data.notes.map(n => `
-            <div class="card mb-2">
-                <div class="card-body py-2 d-flex justify-content-between align-items-start">
-                    <div>
-                        <a href="/stock/${n.ticker_symbol}" class="text-success fw-bold text-decoration-none">${n.ticker_symbol}</a>
-                        <span class="ms-2">${n.note_text}</span>
-                        <br><small class="text-muted">${n.created_at || ""}</small>
+        // Group by ticker
+        const grouped = {};
+        data.notes.forEach(n => {
+            if (!grouped[n.ticker_symbol]) grouped[n.ticker_symbol] = [];
+            grouped[n.ticker_symbol].push(n);
+        });
+
+        container.innerHTML = Object.entries(grouped).map(([symbol, notes]) => `
+            <div class="mb-4 fade-in">
+                <h6 class="mb-3">
+                    <a href="/stock/${symbol}" class="text-success text-decoration-none ticker-badge">${symbol}</a>
+                    <span class="badge bg-secondary ms-2">${notes.length}</span>
+                </h6>
+                ${notes.map(n => `
+                    <div class="card mb-2">
+                        <div class="card-body py-3 d-flex justify-content-between align-items-start gap-3">
+                            <div class="flex-grow-1">
+                                <p class="mb-1 text-light">${n.note_text}</p>
+                                <small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(n.created_at) || "just now"}</small>
+                            </div>
+                            <button class="btn btn-outline-danger btn-sm flex-shrink-0" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                        </div>
                     </div>
-                    <button class="btn btn-outline-danger btn-sm" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
-                </div>
+                `).join("")}
             </div>
         `).join("");
     }
@@ -45,6 +64,7 @@ async function loadAllNotes() {
 
 async function deleteNote(id) {
     await apiFetch(`/api/notes/${id}`, { method: "DELETE" });
+    showToast("Note deleted", "info");
     loadAllNotes();
 }
 

@@ -89,3 +89,29 @@ def me():
     return jsonify({
         "user": {"id": user["id"], "email": user["email"], "created_at": user["created_at"]}
     })
+
+
+@auth_bp.route("/change-password", methods=["POST"])
+@login_required
+def change_password():
+    data = request.get_json()
+    if not data or not data.get("current_password") or not data.get("new_password"):
+        return jsonify({"error": "Current and new password are required"}), 400
+
+    new_password = data["new_password"]
+    if len(new_password) < 6:
+        return jsonify({"error": "New password must be at least 6 characters"}), 400
+
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+
+    if not check_password_hash(user["password_hash"], data["current_password"]):
+        return jsonify({"error": "Current password is incorrect"}), 401
+
+    db.execute(
+        "UPDATE users SET password_hash = ? WHERE id = ?",
+        (generate_password_hash(new_password), session["user_id"])
+    )
+    db.commit()
+
+    return jsonify({"message": "Password updated successfully"})

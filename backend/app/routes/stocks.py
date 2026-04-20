@@ -10,6 +10,25 @@ ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 
+@stocks_bp.route("/search", methods=["GET"])
+def search_stocks():
+    q = request.args.get("q", "").strip().upper()
+    if not q:
+        return jsonify({"results": []})
+
+    db = get_db()
+    rows = db.execute("""
+        SELECT symbol, name, exchange, sector, industry
+        FROM tickers
+        WHERE symbol LIKE ? OR UPPER(name) LIKE ?
+        ORDER BY CASE WHEN symbol = ? THEN 0 WHEN symbol LIKE ? THEN 1 ELSE 2 END
+        LIMIT 20
+    """, (f"%{q}%", f"%{q}%", q, f"{q}%")).fetchall()
+
+    results = [{"symbol": r["symbol"], "name": r["name"], "exchange": r["exchange"], "sector": r["sector"], "industry": r["industry"]} for r in rows]
+    return jsonify({"results": results, "query": q})
+
+
 @stocks_bp.route("/<symbol>", methods=["GET"])
 def get_stock(symbol):
     symbol = symbol.upper()

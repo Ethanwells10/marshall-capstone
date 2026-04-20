@@ -4,44 +4,65 @@
 {% block content %}
 <div class="row justify-content-center mt-5">
     <div class="col-md-5 col-lg-4">
+        <div class="text-center mb-4">
+            <i class="bi bi-graph-up-arrow text-success" style="font-size: 3rem;"></i>
+            <h3 class="mt-2">Market Monitor</h3>
+            <p class="text-muted">Track stocks, manage watchlists, stay informed.</p>
+        </div>
+
         <div class="card shadow">
             <div class="card-body p-4">
-                <h3 class="text-center mb-4"><i class="bi bi-graph-up-arrow text-success"></i> Market Monitor</h3>
-
-                <ul class="nav nav-tabs mb-3" id="authTabs">
+                <ul class="nav nav-pills nav-justified mb-4" id="authTabs">
                     <li class="nav-item">
-                        <a class="nav-link active" href="#" onclick="showTab('login')">Login</a>
+                        <a class="nav-link active" href="#" onclick="showTab('login', event)">Login</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="#" onclick="showTab('register')">Register</a>
+                        <a class="nav-link" href="#" onclick="showTab('register', event)">Register</a>
                     </li>
                 </ul>
 
-                <div id="alertBox" class="alert d-none"></div>
+                <div id="alertBox" class="alert d-none small"></div>
 
                 <form id="loginForm" onsubmit="handleLogin(event)">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" id="loginEmail" required>
+                        <label class="form-label small text-muted">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0" style="border-color:#2d3544;"><i class="bi bi-envelope text-muted"></i></span>
+                            <input type="email" class="form-control border-start-0" id="loginEmail" placeholder="you@example.com" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" id="loginPassword" required>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0" style="border-color:#2d3544;"><i class="bi bi-lock text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0" id="loginPassword" placeholder="Enter password" required>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-success w-100">Login</button>
+                    <button type="submit" class="btn btn-success w-100 py-2" id="loginBtn">
+                        <span class="btn-text">Sign In</span>
+                        <span class="btn-loading d-none"><span class="spinner-border spinner-border-sm me-1"></span>Signing in...</span>
+                    </button>
                 </form>
 
                 <form id="registerForm" style="display:none;" onsubmit="handleRegister(event)">
                     <div class="mb-3">
-                        <label class="form-label">Email</label>
-                        <input type="email" class="form-control" id="regEmail" required>
+                        <label class="form-label small text-muted">Email</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0" style="border-color:#2d3544;"><i class="bi bi-envelope text-muted"></i></span>
+                            <input type="email" class="form-control border-start-0" id="regEmail" placeholder="you@example.com" required>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label">Password</label>
-                        <input type="password" class="form-control" id="regPassword" minlength="6" required>
-                        <div class="form-text">At least 6 characters</div>
+                    <div class="mb-4">
+                        <label class="form-label small text-muted">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-transparent border-end-0" style="border-color:#2d3544;"><i class="bi bi-lock text-muted"></i></span>
+                            <input type="password" class="form-control border-start-0" id="regPassword" minlength="6" placeholder="At least 6 characters" required>
+                        </div>
                     </div>
-                    <button type="submit" class="btn btn-success w-100">Create Account</button>
+                    <button type="submit" class="btn btn-success w-100 py-2" id="regBtn">
+                        <span class="btn-text">Create Account</span>
+                        <span class="btn-loading d-none"><span class="spinner-border spinner-border-sm me-1"></span>Creating...</span>
+                    </button>
                 </form>
             </div>
         </div>
@@ -51,28 +72,31 @@
 
 {% block scripts %}
 <script>
-function showTab(tab) {
+function showTab(tab, event) {
+    event.preventDefault();
     document.querySelectorAll("#authTabs .nav-link").forEach(el => el.classList.remove("active"));
-    if (tab === "login") {
-        event.target.classList.add("active");
-        document.getElementById("loginForm").style.display = "";
-        document.getElementById("registerForm").style.display = "none";
-    } else {
-        event.target.classList.add("active");
-        document.getElementById("loginForm").style.display = "none";
-        document.getElementById("registerForm").style.display = "";
-    }
+    event.target.classList.add("active");
+    document.getElementById("loginForm").style.display = tab === "login" ? "" : "none";
+    document.getElementById("registerForm").style.display = tab === "register" ? "" : "none";
     document.getElementById("alertBox").classList.add("d-none");
 }
 
 function showAlert(msg, type) {
     const box = document.getElementById("alertBox");
-    box.className = `alert alert-${type}`;
+    box.className = `alert alert-${type} small`;
     box.textContent = msg;
+}
+
+function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    btn.querySelector(".btn-text").classList.toggle("d-none", loading);
+    btn.querySelector(".btn-loading").classList.toggle("d-none", !loading);
+    btn.disabled = loading;
 }
 
 async function handleLogin(e) {
     e.preventDefault();
+    setLoading("loginBtn", true);
     const resp = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,11 +111,13 @@ async function handleLogin(e) {
         window.location.href = "/dashboard";
     } else {
         showAlert(data.error || "Login failed", "danger");
+        setLoading("loginBtn", false);
     }
 }
 
 async function handleRegister(e) {
     e.preventDefault();
+    setLoading("regBtn", true);
     const resp = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,10 +132,10 @@ async function handleRegister(e) {
         window.location.href = "/dashboard";
     } else {
         showAlert(data.error || "Registration failed", "danger");
+        setLoading("regBtn", false);
     }
 }
 
-// If already logged in, redirect to dashboard
 checkAuth().then(user => { if (user) window.location.href = "/dashboard"; });
 </script>
 {% endblock %}

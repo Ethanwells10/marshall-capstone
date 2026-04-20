@@ -1,48 +1,275 @@
+/* ===== Global ===== */
 body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: #1a1d23;
+    background-color: #0f1117;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 main { flex: 1; }
 
+/* ===== Cards ===== */
 .card {
-    border: 1px solid #2d3238;
-    background-color: #22262c;
+    border: 1px solid #1e2330;
+    background-color: #181c24;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    transition: box-shadow 0.2s, transform 0.2s;
 }
-.card-header { background-color: #2a2e35; }
+.card:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.card-header {
+    background-color: #1a1f2a;
+    border-bottom: 1px solid #1e2330;
+    border-radius: 12px 12px 0 0 !important;
+    font-weight: 600;
+}
 
+/* ===== Colors ===== */
 .text-gain { color: #22c55e; }
 .text-loss { color: #ef4444; }
+.text-neutral { color: #94a3b8; }
+.bg-gain { background-color: rgba(34, 197, 94, 0.1); }
+.bg-loss { background-color: rgba(239, 68, 68, 0.1); }
 
+/* ===== Ticker Badge ===== */
 .ticker-badge {
-    font-family: monospace;
-    font-weight: 600;
+    font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    font-weight: 700;
     letter-spacing: 0.5px;
 }
 
+/* ===== Stat Cards ===== */
 .stat-card {
-    transition: transform 0.15s;
+    transition: transform 0.2s, box-shadow 0.2s;
+    cursor: default;
 }
 .stat-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+}
+.stat-card .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+}
+.stat-card .stat-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #64748b;
 }
 
+/* ===== Watchlist Items ===== */
 .watchlist-item {
     cursor: pointer;
-    transition: background-color 0.15s;
+    transition: background-color 0.2s, border-color 0.2s;
+    border: 1px solid transparent;
 }
 .watchlist-item:hover {
-    background-color: #2a2e35;
+    background-color: #1a1f2a;
+    border-color: #22c55e33;
+}
+.watchlist-item.active {
+    border-color: #22c55e;
+    background-color: #1a1f2a;
 }
 
+/* ===== Navbar ===== */
+.navbar {
+    background-color: #0f1117 !important;
+    border-bottom: 1px solid #1e2330 !important;
+    padding: 0.75rem 0;
+}
+.navbar-brand {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+.nav-link {
+    color: #94a3b8 !important;
+    font-weight: 500;
+    padding: 0.5rem 1rem !important;
+    border-radius: 8px;
+    transition: color 0.2s, background-color 0.2s;
+}
+.nav-link:hover, .nav-link.active {
+    color: #f1f5f9 !important;
+    background-color: #1e2330;
+}
+
+/* ===== Search ===== */
+#tickerSearch {
+    background-color: #1a1f2a;
+    border-color: #2d3544;
+    color: #e2e8f0;
+    border-radius: 8px 0 0 8px;
+}
+#tickerSearch:focus {
+    background-color: #1e2330;
+    border-color: #22c55e;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+    color: #f1f5f9;
+}
 #tickerSearch::placeholder {
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    color: #475569;
 }
 
+/* ===== Buttons ===== */
+.btn-success {
+    background-color: #22c55e;
+    border-color: #22c55e;
+}
+.btn-success:hover {
+    background-color: #16a34a;
+    border-color: #16a34a;
+}
+.btn-outline-success {
+    color: #22c55e;
+    border-color: #22c55e;
+}
+.btn-outline-success:hover {
+    background-color: #22c55e;
+    color: #0f1117;
+}
+
+/* ===== Loading ===== */
 .spinner-page {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 200px;
+    min-height: 300px;
+}
+.skeleton {
+    background: linear-gradient(90deg, #1e2330 25%, #2a3040 50%, #1e2330 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 6px;
+}
+@keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+}
+.fade-in {
+    animation: fadeIn 0.3s ease-in;
+}
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ===== Tables ===== */
+.table-dark {
+    --bs-table-bg: transparent;
+    --bs-table-border-color: #1e2330;
+}
+.table-dark th {
+    color: #64748b;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ===== Toast ===== */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 9999;
+}
+.toast {
+    border-radius: 10px;
+    border: 1px solid #1e2330;
+    background-color: #181c24;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+
+/* ===== Forms ===== */
+.form-control, .form-select {
+    background-color: #1a1f2a;
+    border-color: #2d3544;
+    color: #e2e8f0;
+    border-radius: 8px;
+}
+.form-control:focus, .form-select:focus {
+    background-color: #1e2330;
+    border-color: #22c55e;
+    color: #f1f5f9;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.15);
+}
+
+/* ===== Modals ===== */
+.modal-content {
+    background-color: #181c24;
+    border: 1px solid #1e2330;
+    border-radius: 12px;
+}
+.modal-header, .modal-footer {
+    border-color: #1e2330;
+}
+
+/* ===== Footer ===== */
+footer {
+    background-color: #0f1117;
+    border-color: #1e2330 !important;
+}
+
+/* ===== Scrollbar ===== */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: #0f1117; }
+::-webkit-scrollbar-thumb { background: #2d3544; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #3d4554; }
+
+/* ===== Responsive ===== */
+@media (max-width: 768px) {
+    .stat-card .stat-value { font-size: 1.2rem; }
+    .navbar-brand { font-size: 1rem; }
+    h4 { font-size: 1.25rem; }
+    .card-body { padding: 1rem; }
+}
+
+/* ===== Empty States ===== */
+.empty-state {
+    text-align: center;
+    padding: 3rem 1.5rem;
+    color: #64748b;
+}
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+.empty-state h5 {
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+}
+.empty-state p {
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+/* ===== Profile Page ===== */
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #22c55e, #16a34a);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: white;
+}
+
+/* ===== List Group ===== */
+.list-group-item {
+    background-color: #181c24;
+    border-color: #1e2330;
+    color: #e2e8f0;
+    transition: background-color 0.2s;
+}
+.list-group-item:hover {
+    background-color: #1a1f2a;
 }

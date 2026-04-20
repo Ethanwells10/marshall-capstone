@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect
+from flask import Flask, render_template, redirect, request
 from flask_cors import CORS
 from .db import init_db, get_db
 import os
@@ -50,6 +50,15 @@ def create_app():
     @app.route("/stock/<symbol>")
     def stock_page(symbol):
         return render_template("stock.html", symbol=symbol.upper())
+
+    @app.route("/profile")
+    def profile_page():
+        return render_template("profile.html")
+
+    @app.route("/search")
+    def search_page():
+        query = request.args.get("q", "").strip().upper()
+        return render_template("search.html", query=query)
 
     @app.route("/api/health")
     def health():
