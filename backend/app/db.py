@@ -103,6 +103,40 @@ def init_db(app):
                         VALUES (?, ?, ?)
                     """, (cache_key, json.dumps(quote), cache_expiry))
 
+                # Seed sample price history for charts
+                import random
+                random.seed(42)
+                history_expiry = (datetime.now(timezone.utc) + timedelta(hours=48)).isoformat()
+
+                base_prices = {
+                    "AAPL": 250, "MSFT": 420, "GOOGL": 165, "NVDA": 880, "META": 570,
+                    "AMZN": 185, "TSLA": 260, "JPM": 200, "V": 305, "JNJ": 155,
+                    "SPY": 545, "QQQ": 470, "DIA": 415, "GS": 480, "BAC": 40,
+                    "UNH": 520, "XOM": 108, "DIS": 108
+                }
+
+                for sym, base in base_prices.items():
+                    # Generate 22 days of data (1M)
+                    prices_1m = []
+                    price = base
+                    for d in range(22):
+                        price = round(price * (1 + random.uniform(-0.025, 0.03)), 2)
+                        date = (datetime.now() - timedelta(days=22-d)).strftime("%Y-%m-%d")
+                        prices_1m.append({"date": date, "close": price})
+
+                    cache_key = f"alphavantage:history:{sym}:1M"
+                    db.execute("""
+                        INSERT OR IGNORE INTO api_cache (cache_key, cache_data, expires_at)
+                        VALUES (?, ?, ?)
+                    """, (cache_key, json.dumps(prices_1m), history_expiry))
+
+                    # 1W = last 5 days from the 1M data
+                    cache_key = f"alphavantage:history:{sym}:1W"
+                    db.execute("""
+                        INSERT OR IGNORE INTO api_cache (cache_key, cache_data, expires_at)
+                        VALUES (?, ?, ?)
+                    """, (cache_key, json.dumps(prices_1m[-5:]), history_expiry))
+
                 # Sample portfolio transactions
                 portfolio_data = [
                     (admin_id, 'AAPL', 'buy', 15, 178.50, '2025-09-15', 'Initial position'),
