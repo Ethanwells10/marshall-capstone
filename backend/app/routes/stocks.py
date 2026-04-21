@@ -116,42 +116,37 @@ def get_stock_history(symbol):
     time_range = request.args.get("range", "1M")
     db = get_db()
 
-    cache_key = f"alphavantage:history:{symbol}:{time_range}"
+    cache_key = f"history:{symbol}:{time_range}"
     cached = get_cached(db, cache_key)
     if cached:
         return jsonify({"symbol": symbol, "range": time_range, "prices": cached})
 
     prices = []
 
-    # Use Alpha Vantage for history (Finnhub free tier doesn't support candles)
-    if ALPHA_VANTAGE_KEY:
-        try:
-            if time_range in ("1W", "1M"):
-                function = "TIME_SERIES_DAILY"
-            else:
-                function = "TIME_SERIES_WEEKLY"
+    # Use Yahoo Finance for history (no API key, no rate limit)
+    try:
+        from datetime import datetime
+        yf_range = {"1W": "5d", "1M": "1mo", "3M": "3mo", "1Y": "1y"}.get(time_range, "1mo")
+        yf_interval = "1d" if time_range in ("1W", "1M", "3M") else "1wk"
 
-            url = f"https://www.alphavantage.co/query?function={function}&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range={yf_range}&interval={yf_interval}"
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+        data = resp.json()
 
-            if "Information" in data or "Note" in data:
-                return jsonify({"symbol": symbol, "range": time_range, "prices": [], "rate_limited": True})
+        result = data.get("chart", {}).get("result", [])
+        if result:
+            timestamps = result[0].get("timestamp", [])
+            closes = result[0].get("indicators", {}).get("quote", [{}])[0].get("close", [])
 
-            time_series_key = "Time Series (Daily)" if function == "TIME_SERIES_DAILY" else "Weekly Time Series"
-            series = data.get(time_series_key, {})
-
-            limit = {"1W": 5, "1M": 22, "3M": 66, "1Y": 52}.get(time_range, 22)
-
-            for date, values in sorted(series.items(), reverse=True)[:limit]:
-                prices.append({"date": date, "close": float(values["4. close"])})
-
-            prices.reverse()
+            for i in range(len(timestamps)):
+                if closes[i] is not None:
+                    date_str = datetime.fromtimestamp(timestamps[i]).strftime("%Y-%m-%d")
+                    prices.append({"date": date_str, "close": round(closes[i], 2)})
 
             if prices:
                 set_cached(db, cache_key, prices, minutes=1440)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return jsonify({"symbol": symbol, "range": time_range, "prices": prices})
 
