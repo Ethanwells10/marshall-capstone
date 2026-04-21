@@ -8,39 +8,56 @@ import time
 market_bp = Blueprint("market", __name__)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 
 
 def fetch_quote(symbol, db):
-    """Fetch a quote from cache or Alpha Vantage with rate limit handling."""
+    """Fetch a quote from cache, then Finnhub, then Alpha Vantage."""
     cache_key = f"alphavantage:quote:{symbol}"
     cached = get_cached(db, cache_key)
     if cached:
         return cached
 
-    if not ALPHA_VANTAGE_KEY:
-        return None
+    # Try Finnhub first (60 req/min)
+    if FINNHUB_KEY:
+        try:
+            url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            if data.get("c") and data["c"] > 0:
+                quote = {
+                    "price": data["c"],
+                    "change": round(data["c"] - data["pc"], 2),
+                    "change_percent": round(((data["c"] - data["pc"]) / data["pc"]) * 100, 2),
+                    "volume": 0
+                }
+                set_cached(db, cache_key, quote, minutes=60)
+                return quote
+        except Exception:
+            pass
 
-    try:
-        url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
-        resp = requests.get(url, timeout=10)
-        data = resp.json()
+    # Fallback to Alpha Vantage (25 req/day)
+    if ALPHA_VANTAGE_KEY:
+        try:
+            url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
 
-        # Rate limit or info message — skip
-        if "Information" in data or "Note" in data:
-            return None
+            if "Information" in data or "Note" in data:
+                return None
 
-        gq = data.get("Global Quote", {})
-        if gq and gq.get("05. price"):
-            quote = {
-                "price": float(gq.get("05. price", 0)),
-                "change": float(gq.get("09. change", 0)),
-                "change_percent": float(gq.get("10. change percent", "0%").replace("%", "")),
-                "volume": int(gq.get("06. volume", 0))
-            }
-            set_cached(db, cache_key, quote, minutes=60)
-            return quote
-    except Exception:
-        pass
+            gq = data.get("Global Quote", {})
+            if gq and gq.get("05. price"):
+                quote = {
+                    "price": float(gq.get("05. price", 0)),
+                    "change": float(gq.get("09. change", 0)),
+                    "change_percent": float(gq.get("10. change percent", "0%").replace("%", "")),
+                    "volume": int(gq.get("06. volume", 0))
+                }
+                set_cached(db, cache_key, quote, minutes=60)
+                return quote
+        except Exception:
+            pass
 
     return None
 
@@ -64,8 +81,8 @@ def overview():
         else:
             indices.append({"symbol": symbol, "name": name, "price": None, "change_percent": None})
 
-        # Rate limit: wait between uncached API calls
-        if i < len(index_symbols) - 1:
+        # Rate limit: wait between uncached API calls (only for Alpha Vantage fallback)
+        if not FINNHUB_KEY and i < len(index_symbols) - 1:
             cache_key = f"alphavantage:quote:{index_symbols[i+1][0]}"
             if not get_cached(db, cache_key):
                 time.sleep(1.5)

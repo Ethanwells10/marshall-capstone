@@ -70,6 +70,39 @@ def init_db(app):
                 db.execute("INSERT OR IGNORE INTO user_notes (user_id, ticker_symbol, note_text) VALUES (?, 'JPM', 'Interest rate environment favorable. Watch credit card delinquency trends.')", (admin_id,))
                 db.execute("INSERT OR IGNORE INTO user_notes (user_id, ticker_symbol, note_text) VALUES (?, 'GOOGL', 'Search ad revenue still dominant. Cloud segment approaching profitability.')", (admin_id,))
 
+                # Pre-seed API cache with sample market data so dashboard always has content
+                import json
+                from datetime import datetime, timedelta, timezone
+
+                sample_quotes = {
+                    "AAPL": {"price": 270.23, "change": 3.45, "change_percent": 1.29, "volume": 54320100},
+                    "MSFT": {"price": 448.12, "change": -2.10, "change_percent": -0.47, "volume": 21450000},
+                    "GOOGL": {"price": 176.88, "change": 1.92, "change_percent": 1.10, "volume": 18900000},
+                    "NVDA": {"price": 950.02, "change": 15.30, "change_percent": 1.64, "volume": 42100000},
+                    "META": {"price": 595.40, "change": -4.20, "change_percent": -0.70, "volume": 15200000},
+                    "AMZN": {"price": 198.75, "change": 2.80, "change_percent": 1.43, "volume": 31800000},
+                    "TSLA": {"price": 245.60, "change": -8.40, "change_percent": -3.31, "volume": 68500000},
+                    "JPM": {"price": 212.50, "change": 1.15, "change_percent": 0.54, "volume": 8900000},
+                    "V": {"price": 315.20, "change": 0.85, "change_percent": 0.27, "volume": 6200000},
+                    "JNJ": {"price": 158.90, "change": -0.45, "change_percent": -0.28, "volume": 7100000},
+                    "SPY": {"price": 562.80, "change": 4.20, "change_percent": 0.75, "volume": 72000000},
+                    "QQQ": {"price": 487.35, "change": 5.60, "change_percent": 1.16, "volume": 38000000},
+                    "DIA": {"price": 425.10, "change": 2.80, "change_percent": 0.66, "volume": 3200000},
+                    "GS": {"price": 498.30, "change": 3.20, "change_percent": 0.65, "volume": 2100000},
+                    "BAC": {"price": 42.15, "change": 0.35, "change_percent": 0.84, "volume": 28000000},
+                    "UNH": {"price": 528.40, "change": -2.60, "change_percent": -0.49, "volume": 3400000},
+                    "XOM": {"price": 112.85, "change": 1.50, "change_percent": 1.35, "volume": 12500000},
+                    "DIS": {"price": 112.20, "change": 0.90, "change_percent": 0.81, "volume": 9800000},
+                }
+
+                cache_expiry = (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+                for sym, quote in sample_quotes.items():
+                    cache_key = f"alphavantage:quote:{sym}"
+                    db.execute("""
+                        INSERT OR IGNORE INTO api_cache (cache_key, cache_data, expires_at)
+                        VALUES (?, ?, ?)
+                    """, (cache_key, json.dumps(quote), cache_expiry))
+
                 # Sample portfolio transactions
                 portfolio_data = [
                     (admin_id, 'AAPL', 'buy', 15, 178.50, '2025-09-15', 'Initial position'),

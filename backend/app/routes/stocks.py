@@ -8,6 +8,7 @@ import time
 stocks_bp = Blueprint("stocks", __name__)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 
@@ -66,13 +67,30 @@ def get_stock(symbol):
     cached = get_cached(db, cache_key)
     if cached:
         stock_data["quote"] = cached
+    elif FINNHUB_KEY:
+        # Try Finnhub first (60 req/min free tier)
+        try:
+            url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_KEY}"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            if data.get("c") and data["c"] > 0:
+                quote = {
+                    "price": data["c"],
+                    "change": round(data["c"] - data["pc"], 2),
+                    "change_percent": str(round(((data["c"] - data["pc"]) / data["pc"]) * 100, 2)),
+                    "volume": 0
+                }
+                stock_data["quote"] = quote
+                set_cached(db, cache_key, quote, minutes=60)
+        except Exception:
+            pass
     elif ALPHA_VANTAGE_KEY:
+        # Fallback to Alpha Vantage (25 req/day)
         try:
             url = f"https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol={symbol}&apikey={ALPHA_VANTAGE_KEY}"
             resp = requests.get(url, timeout=10)
             data = resp.json()
 
-            # Handle rate limit
             if "Information" in data or "Note" in data:
                 stock_data["rate_limited"] = True
             else:
