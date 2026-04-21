@@ -123,32 +123,8 @@ def get_stock_history(symbol):
 
     prices = []
 
-    # Try Finnhub first
-    if FINNHUB_KEY:
-        try:
-            from datetime import datetime, timedelta
-            now = int(datetime.now().timestamp())
-            days = {"1W": 7, "1M": 30, "3M": 90, "1Y": 365}.get(time_range, 30)
-            start = int((datetime.now() - timedelta(days=days)).timestamp())
-            resolution = "D" if days <= 90 else "W"
-
-            url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol}&resolution={resolution}&from={start}&to={now}&token={FINNHUB_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-
-            if data.get("s") == "ok" and data.get("c"):
-                for i in range(len(data["c"])):
-                    ts = data["t"][i]
-                    date_str = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
-                    prices.append({"date": date_str, "close": round(data["c"][i], 2)})
-
-                if prices:
-                    set_cached(db, cache_key, prices, minutes=1440)
-        except Exception:
-            pass
-
-    # Fallback to Alpha Vantage
-    if not prices and ALPHA_VANTAGE_KEY:
+    # Use Alpha Vantage for history (Finnhub free tier doesn't support candles)
+    if ALPHA_VANTAGE_KEY:
         try:
             if time_range in ("1W", "1M"):
                 function = "TIME_SERIES_DAILY"
