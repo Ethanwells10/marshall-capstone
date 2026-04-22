@@ -234,11 +234,14 @@ async function loadNotes() {
         return;
     }
     container.innerHTML = '<div class="fade-in">' + data.notes.map(n => `
-        <div class="mb-2 p-3 rounded" style="background-color:#1a1f2a;">
-            <p class="mb-1 text-light">${n.note_text}</p>
+        <div class="mb-2 p-3 rounded" style="background-color:#1a1f2a;" id="note-${n.id}">
+            <p class="mb-1 text-light" id="note-text-${n.id}">${n.note_text}</p>
             <div class="d-flex justify-content-between align-items-center">
                 <small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(n.created_at) || "just now"}</small>
-                <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-outline-secondary btn-sm py-0 px-2" onclick="startEditNote(${n.id}, '${n.note_text.replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g,"\\n")}')"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-outline-danger btn-sm py-0 px-2" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                </div>
             </div>
         </div>
     `).join("") + '</div>';
@@ -259,6 +262,29 @@ async function saveNote() {
         document.getElementById("noteForm").style.display = "none";
         showToast("Note saved", "success");
         loadNotes();
+    }
+}
+
+function startEditNote(id, text) {
+    const container = document.getElementById(`note-${id}`);
+    container.innerHTML = `
+        <textarea class="form-control mb-2" id="edit-note-${id}" rows="2">${text}</textarea>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success btn-sm" onclick="saveEditNote(${id})"><i class="bi bi-check-lg me-1"></i>Save</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadNotes()">Cancel</button>
+        </div>`;
+    document.getElementById(`edit-note-${id}`).focus();
+}
+
+async function saveEditNote(id) {
+    const text = document.getElementById(`edit-note-${id}`).value.trim();
+    if (!text) return;
+    const resp = await apiFetch(`/api/notes/${id}`, { method: "PUT", body: JSON.stringify({ note_text: text }) });
+    if (resp && resp.ok) {
+        showToast("Note updated", "success");
+        loadNotes();
+    } else {
+        showToast("Failed to update note", "error");
     }
 }
 

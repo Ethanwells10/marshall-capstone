@@ -20,6 +20,7 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-eye text-success me-2"></i><span id="detailName"></span></h5>
                 <div>
+                    <button class="btn btn-outline-secondary btn-sm me-1" onclick="showRenameModal()"><i class="bi bi-pencil me-1"></i>Rename</button>
                     <button class="btn btn-outline-success btn-sm me-1" onclick="showAddTickerModal()"><i class="bi bi-plus-lg me-1"></i>Add Stock</button>
                     <button class="btn btn-outline-danger btn-sm" onclick="deleteWatchlist()"><i class="bi bi-trash"></i></button>
                 </div>
@@ -50,6 +51,25 @@
     </div>
 </div>
 
+<!-- Rename Watchlist Modal -->
+<div class="modal fade" id="renameModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Rename Watchlist</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" class="form-control" id="renameWatchlistName" placeholder="New name" autofocus>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success btn-sm" onclick="renameWatchlist()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Add Ticker Modal -->
 <div class="modal fade" id="addTickerModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
@@ -73,7 +93,7 @@
 {% block scripts %}
 <script>
 let selectedWatchlistId = null;
-let createModalInstance, addTickerModalInstance;
+let createModalInstance, addTickerModalInstance, renameModalInstance;
 
 async function loadWatchlists() {
     const user = await checkAuth();
@@ -171,6 +191,28 @@ async function deleteWatchlist() {
     loadWatchlists();
 }
 
+function showRenameModal() {
+    document.getElementById("renameWatchlistName").value = document.getElementById("detailName").textContent;
+    renameModalInstance = new bootstrap.Modal(document.getElementById("renameModal"));
+    renameModalInstance.show();
+    setTimeout(() => { const input = document.getElementById("renameWatchlistName"); input.focus(); input.select(); }, 300);
+}
+
+async function renameWatchlist() {
+    const name = document.getElementById("renameWatchlistName").value.trim();
+    if (!name || !selectedWatchlistId) return;
+    const resp = await apiFetch(`/api/watchlists/${selectedWatchlistId}`, { method: "PUT", body: JSON.stringify({ name }) });
+    renameModalInstance.hide();
+    if (resp && resp.ok) {
+        document.getElementById("detailName").textContent = name;
+        showToast(`Watchlist renamed to "${name}"`, "success");
+        loadWatchlists();
+    } else {
+        const data = resp ? await resp.json() : {};
+        showToast(data.error || "Failed to rename watchlist", "error");
+    }
+}
+
 function showAddTickerModal() {
     document.getElementById("addTickerSymbol").value = "";
     addTickerModalInstance = new bootstrap.Modal(document.getElementById("addTickerModal"));
@@ -205,6 +247,7 @@ async function removeTicker(symbol, e) {
 // Handle enter key in modals
 document.getElementById("newWatchlistName").addEventListener("keydown", e => { if (e.key === "Enter") createWatchlist(); });
 document.getElementById("addTickerSymbol").addEventListener("keydown", e => { if (e.key === "Enter") addTicker(); });
+document.getElementById("renameWatchlistName").addEventListener("keydown", e => { if (e.key === "Enter") renameWatchlist(); });
 
 loadWatchlists();
 </script>

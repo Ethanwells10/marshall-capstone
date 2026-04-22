@@ -44,13 +44,16 @@ async function loadAllNotes() {
                     <span class="badge bg-secondary ms-2">${notes.length}</span>
                 </h6>
                 ${notes.map(n => `
-                    <div class="card mb-2">
+                    <div class="card mb-2" id="note-${n.id}">
                         <div class="card-body py-3 d-flex justify-content-between align-items-start gap-3">
                             <div class="flex-grow-1">
                                 <p class="mb-1 text-light">${n.note_text}</p>
                                 <small class="text-muted"><i class="bi bi-clock me-1"></i>${timeAgo(n.created_at) || "just now"}</small>
                             </div>
-                            <button class="btn btn-outline-danger btn-sm flex-shrink-0" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                            <div class="d-flex gap-1 flex-shrink-0">
+                                <button class="btn btn-outline-secondary btn-sm" onclick="startEditNote(${n.id}, '${n.note_text.replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\n/g,"\\n")}')"><i class="bi bi-pencil"></i></button>
+                                <button class="btn btn-outline-danger btn-sm" onclick="deleteNote(${n.id})"><i class="bi bi-trash"></i></button>
+                            </div>
                         </div>
                     </div>
                 `).join("")}
@@ -60,6 +63,29 @@ async function loadAllNotes() {
 
     document.getElementById("pageLoader").style.display = "none";
     document.getElementById("pageContent").style.display = "";
+}
+
+function startEditNote(id, text) {
+    const card = document.getElementById(`note-${id}`);
+    card.querySelector('.card-body').innerHTML = `
+        <textarea class="form-control mb-2" id="edit-note-${id}" rows="2">${text}</textarea>
+        <div class="d-flex gap-2">
+            <button class="btn btn-success btn-sm" onclick="saveEditNote(${id})"><i class="bi bi-check-lg me-1"></i>Save</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadAllNotes()">Cancel</button>
+        </div>`;
+    document.getElementById(`edit-note-${id}`).focus();
+}
+
+async function saveEditNote(id) {
+    const text = document.getElementById(`edit-note-${id}`).value.trim();
+    if (!text) return;
+    const resp = await apiFetch(`/api/notes/${id}`, { method: "PUT", body: JSON.stringify({ note_text: text }) });
+    if (resp && resp.ok) {
+        showToast("Note updated", "success");
+        loadAllNotes();
+    } else {
+        showToast("Failed to update note", "error");
+    }
 }
 
 async function deleteNote(id) {

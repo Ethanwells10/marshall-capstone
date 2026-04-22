@@ -9,6 +9,7 @@ market_bp = Blueprint("market", __name__)
 
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
+NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
 
 
 def fetch_quote(symbol, db):
@@ -125,3 +126,36 @@ def overview():
             ]
 
     return jsonify({"indices": indices, "crypto": crypto})
+
+
+@market_bp.route("/headlines", methods=["GET"])
+def headlines():
+    db = get_db()
+
+    cache_key = "newsapi:top_headlines"
+    cached = get_cached(db, cache_key)
+    if cached:
+        return jsonify({"articles": cached})
+
+    articles = []
+    if NEWS_API_KEY:
+        try:
+            url = f"https://newsapi.org/v2/top-headlines?category=business&country=us&pageSize=6&apiKey={NEWS_API_KEY}"
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+
+            for article in data.get("articles", [])[:6]:
+                articles.append({
+                    "title": article.get("title"),
+                    "source": article.get("source", {}).get("name"),
+                    "url": article.get("url"),
+                    "published_at": article.get("publishedAt"),
+                    "description": article.get("description")
+                })
+
+            if articles:
+                set_cached(db, cache_key, articles, minutes=30)
+        except Exception:
+            pass
+
+    return jsonify({"articles": articles})
