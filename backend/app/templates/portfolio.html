@@ -97,20 +97,17 @@
                         <input type="text" class="form-control" id="txSymbol" placeholder="e.g. AAPL" style="text-transform:uppercase;">
                     </div>
                     <div class="col-6">
-                        <label class="form-label small text-muted">Shares</label>
-                        <input type="number" class="form-control" id="txShares" step="0.01" min="0.01" placeholder="10">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label small text-muted">Price per Share ($)</label>
-                        <input type="number" class="form-control" id="txPrice" step="0.01" min="0.01" placeholder="150.00">
+                        <label class="form-label small text-muted">Dollar Amount ($)</label>
+                        <input type="number" class="form-control" id="txAmount" step="0.01" min="0.01" placeholder="1000.00">
                     </div>
                     <div class="col-6">
                         <label class="form-label small text-muted">Date</label>
                         <input type="date" class="form-control" id="txDate">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label small text-muted">Total</label>
-                        <div class="form-control bg-transparent text-light" id="txTotal" style="border-color:#2d3544;">$0.00</div>
+                    <div class="col-12">
+                        <div class="rounded p-2 small" style="background-color:#1a1f2a;" id="txSharesPreview">
+                            <span class="text-muted">Enter a symbol and amount to see share count</span>
+                        </div>
                     </div>
                     <div class="col-12">
                         <label class="form-label small text-muted">Notes (optional)</label>
@@ -242,46 +239,84 @@ async function loadPortfolio() {
     document.getElementById("pageContent").style.display = "";
 }
 
+let currentPrice = null;
+let priceTimeout = null;
+
 function showAddModal() {
     document.getElementById("txSymbol").value = "";
-    document.getElementById("txShares").value = "";
-    document.getElementById("txPrice").value = "";
+    document.getElementById("txAmount").value = "";
     document.getElementById("txDate").value = new Date().toISOString().split("T")[0];
     document.getElementById("txNotes").value = "";
-    document.getElementById("txTotal").textContent = "$0.00";
+    document.getElementById("txSharesPreview").innerHTML = '<span class="text-muted">Enter a symbol and amount to see share count</span>';
+    currentPrice = null;
     addModalInstance = new bootstrap.Modal(document.getElementById("addModal"));
     addModalInstance.show();
 }
 
-// Auto-calculate total
-document.getElementById("txShares").addEventListener("input", updateTotal);
-document.getElementById("txPrice").addEventListener("input", updateTotal);
-function updateTotal() {
-    const shares = parseFloat(document.getElementById("txShares").value) || 0;
-    const price = parseFloat(document.getElementById("txPrice").value) || 0;
-    document.getElementById("txTotal").textContent = formatPrice(shares * price);
+// Fetch price when symbol changes
+document.getElementById("txSymbol").addEventListener("input", function() {
+    clearTimeout(priceTimeout);
+    currentPrice = null;
+    updateSharesPreview();
+    const symbol = this.value.trim().toUpperCase();
+    if (symbol.length >= 1) {
+        priceTimeout = setTimeout(() => fetchPrice(symbol), 500);
+    }
+});
+
+document.getElementById("txAmount").addEventListener("input", updateSharesPreview);
+
+async function fetchPrice(symbol) {
+    document.getElementById("txSharesPreview").innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Fetching price...</span>';
+    const resp = await apiFetch(`/api/stocks/${symbol}`);
+    const data = resp ? await resp.json() : {};
+    if (data.quote && data.quote.price) {
+        currentPrice = data.quote.price;
+        updateSharesPreview();
+    } else {
+        document.getElementById("txSharesPreview").innerHTML = '<span class="text-warning"><i class="bi bi-exclamation-triangle me-1"></i>Could not fetch price for ' + symbol + '</span>';
+    }
+}
+
+function updateSharesPreview() {
+    const amount = parseFloat(document.getElementById("txAmount").value) || 0;
+    const preview = document.getElementById("txSharesPreview");
+    if (!currentPrice || !amount) {
+        if (currentPrice) {
+            preview.innerHTML = `<span class="text-muted">Current price: <strong class="text-light">${formatPrice(currentPrice)}</strong> — enter an amount</span>`;
+        }
+        return;
+    }
+    const shares = amount / currentPrice;
+    preview.innerHTML = `<span class="text-light"><i class="bi bi-calculator me-1 text-success"></i>${formatPrice(amount)} ÷ ${formatPrice(currentPrice)} = <strong>${shares.toFixed(4)} shares</strong></span>`;
 }
 
 async function addTransaction() {
     const symbol = document.getElementById("txSymbol").value.trim().toUpperCase();
-    const shares = parseFloat(document.getElementById("txShares").value);
-    const price = parseFloat(document.getElementById("txPrice").value);
+    const amount = parseFloat(document.getElementById("txAmount").value);
     const date = document.getElementById("txDate").value;
     const type = document.getElementById("txType").value;
     const notes = document.getElementById("txNotes").value.trim();
 
-    if (!symbol || !shares || !price || !date) {
+    if (!symbol || !amount || !date) {
         showToast("Please fill in all required fields", "error");
         return;
     }
+
+    if (!currentPrice) {
+        showToast("Waiting for stock price — try again in a moment", "error");
+        return;
+    }
+
+    const shares = amount / currentPrice;
 
     const resp = await apiFetch("/api/portfolio", {
         method: "POST",
         body: JSON.stringify({
             ticker_symbol: symbol,
             transaction_type: type,
-            shares,
-            price_per_share: price,
+            shares: parseFloat(shares.toFixed(4)),
+            price_per_share: currentPrice,
             transaction_date: date,
             notes
         })
@@ -289,7 +324,7 @@ async function addTransaction() {
 
     if (resp && resp.ok) {
         addModalInstance.hide();
-        showToast(`${type === 'buy' ? 'Bought' : 'Sold'} ${shares} ${symbol} @ ${formatPrice(price)}`, "success");
+        showToast(`${type === 'buy' ? 'Bought' : 'Sold'} ${shares.toFixed(4)} shares of ${symbol} for ${formatPrice(amount)}`, "success");
         loadPortfolio();
     } else {
         const data = resp ? await resp.json() : {};
