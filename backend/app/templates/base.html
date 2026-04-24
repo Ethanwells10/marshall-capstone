@@ -65,6 +65,18 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+    // Show/hide nav based on auth on every page
+    (async () => {
+        const resp = await fetch("/api/auth/me", { credentials: "same-origin" });
+        if (resp.ok) {
+            document.getElementById("navLinks").style.display = "";
+            document.getElementById("searchForm").style.cssText = "";
+            document.getElementById("userNav").style.display = "";
+            highlightActiveNav();
+        }
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
