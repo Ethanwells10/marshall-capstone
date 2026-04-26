@@ -16,7 +16,14 @@ async function checkAuth() {
         const data = await resp.json();
         document.getElementById("navLinks").style.display = "";
         document.getElementById("searchForm").style.cssText = "";
-        document.getElementById("userNav").style.display = "";
+        const userNav = document.getElementById("userNav");
+        if (!userNav.innerHTML.trim()) {
+            userNav.innerHTML = `
+                <a href="/profile" class="btn btn-outline-secondary btn-sm rounded-circle p-0 d-flex align-items-center justify-content-center" style="width:32px;height:32px;" title="Profile">
+                    <i class="bi bi-person"></i>
+                </a>
+                <button class="btn btn-outline-light btn-sm" onclick="logout()"><i class="bi bi-box-arrow-right me-1"></i>Logout</button>`;
+        }
         highlightActiveNav();
         return data.user;
     }
