@@ -41,6 +41,12 @@
         <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-globe-americas me-1"></i>International GDP Comparison</h6>
         <div id="intlGdpSection"></div>
     </div>
+
+    <!-- Economic Headlines -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-newspaper me-1"></i>Economic Headlines</h6>
+        <div class="row g-3" id="econHeadlines"></div>
+    </div>
 </div>
 
 <!-- News Modal -->
@@ -248,9 +254,36 @@ async function loadEconomics() {
                     </table>
                 </div>
             </div>
-            <small class="text-muted mt-2 d-block">Source: World Bank</small>`;
+            <small class="text-muted mt-2 d-block">Source: IMF World Economic Outlook</small>`;
     } else {
-        intlSection.innerHTML = emptyState("bi-globe", "No international GDP data", "World Bank data will appear here when available.");
+        intlSection.innerHTML = emptyState("bi-globe", "No international GDP data", "IMF data will appear here when available.");
+    }
+
+    // Economic Headlines
+    const headlinesDiv = document.getElementById("econHeadlines");
+    headlinesDiv.innerHTML = skeletonCards(4);
+    const newsResp = await apiFetch("/api/market/economics/headlines");
+    if (newsResp) {
+        const newsData = await newsResp.json();
+        if (newsData.articles && newsData.articles.length > 0) {
+            headlinesDiv.innerHTML = newsData.articles.map(a => `
+                <div class="col-md-6 col-lg-3 fade-in">
+                    <a href="${a.url}" target="_blank" rel="noopener" class="text-decoration-none">
+                        <div class="card watchlist-item h-100">
+                            <div class="card-body py-3">
+                                <p class="text-light fw-semibold mb-2" style="line-height:1.4; font-size:0.85rem;">${a.title}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <small class="text-muted"><i class="bi bi-building me-1"></i>${a.source || "Unknown"}</small>
+                                    ${a.published_at ? `<small class="text-muted">${timeAgo(a.published_at)}</small>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            `).join("");
+        } else {
+            headlinesDiv.innerHTML = emptyState("bi-newspaper", "No headlines available", "Economic news will appear here when the NewsAPI key is configured.");
+        }
     }
 
     document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString();

@@ -285,6 +285,45 @@ def economics_news():
     return jsonify({"articles": articles})
 
 
+@market_bp.route("/economics/headlines", methods=["GET"])
+def economics_headlines():
+    """Fetch top economic/macro headlines covering tariffs, oil, trade, etc."""
+    db = get_db()
+
+    cache_key = "newsapi:econ_headlines"
+    cached = get_cached(db, cache_key)
+    if cached:
+        return jsonify({"articles": cached})
+
+    articles = []
+    if NEWS_API_KEY:
+        try:
+            url = (
+                f"https://newsapi.org/v2/everything"
+                f"?q=(tariffs OR trade war OR oil prices OR inflation OR "
+                f"interest rates OR federal reserve OR recession OR GDP OR "
+                f"economy OR geopolitics)"
+                f"&language=en&sortBy=publishedAt&pageSize=8"
+                f"&apiKey={NEWS_API_KEY}"
+            )
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for article in data.get("articles", [])[:8]:
+                articles.append({
+                    "title": article.get("title"),
+                    "source": article.get("source", {}).get("name"),
+                    "url": article.get("url"),
+                    "published_at": article.get("publishedAt"),
+                    "description": article.get("description"),
+                })
+            if articles:
+                set_cached(db, cache_key, articles, minutes=30)
+        except Exception:
+            pass
+
+    return jsonify({"articles": articles})
+
+
 @market_bp.route("/headlines", methods=["GET"])
 def headlines():
     db = get_db()
