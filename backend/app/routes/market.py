@@ -10,6 +10,7 @@ market_bp = Blueprint("market", __name__)
 ALPHA_VANTAGE_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
 FINNHUB_KEY = os.environ.get("FINNHUB_KEY", "")
 NEWS_API_KEY = os.environ.get("NEWS_API_KEY", "")
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
 
 
 def fetch_quote(symbol, db):
@@ -128,153 +129,89 @@ def overview():
     return jsonify({"indices": indices, "crypto": crypto})
 
 
+def fetch_fred_series(db, series_id):
+    """Fetch the latest observation from FRED API with caching."""
+    cache_key = f"fred:{series_id}"
+    cached = get_cached(db, cache_key)
+    if cached:
+        return cached
+
+    if not FRED_API_KEY:
+        return None
+
+    try:
+        url = (
+            f"https://api.stlouisfed.org/fred/series/observations"
+            f"?series_id={series_id}&api_key={FRED_API_KEY}"
+            f"&file_type=json&sort_order=desc&limit=5"
+        )
+        resp = requests.get(url, timeout=10)
+        data = resp.json()
+        observations = data.get("observations", [])
+        for obs in observations:
+            if obs["value"] != ".":
+                result = {"value": round(float(obs["value"]), 1), "date": obs["date"]}
+                set_cached(db, cache_key, result, minutes=720)
+                return result
+    except Exception:
+        pass
+    return None
+
+
 @market_bp.route("/economics", methods=["GET"])
 def economics():
     db = get_db()
 
     indicators = {}
 
-    # Federal Funds Rate
-    cache_key = "av:federal_funds_rate"
-    cached = get_cached(db, cache_key)
-    if cached:
-        indicators["fed_funds_rate"] = cached
-    elif ALPHA_VANTAGE_KEY:
-        try:
-            url = f"https://www.alphavantage.co/query?function=FEDERAL_FUNDS_RATE&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            if "data" in data and len(data["data"]) > 0:
-                latest = data["data"][0]
-                result = {"value": latest["value"], "date": latest["date"]}
-                set_cached(db, cache_key, result, minutes=1440)
-                indicators["fed_funds_rate"] = result
-        except Exception:
-            pass
+    fred_series = {
+        "fed_funds_rate": "DFF",
+        "treasury_2year": "DGS2",
+        "treasury_5year": "DGS5",
+        "treasury_10year": "DGS10",
+        "nominal_gdp": "GDP",
+        "real_gdp": "GDPC1",
+        "gdp_growth_rate": "A191RL1Q225SBEA",
+        "cpi": "CPIAUCSL",
+        "inflation": "FPCPITOTLZGUSA",
+        "unemployment": "UNRATE",
+    }
 
-    # Treasury Yields (2Y, 5Y, 10Y)
-    for maturity in ["2year", "5year", "10year"]:
-        cache_key = f"av:treasury_yield:{maturity}"
-        cached = get_cached(db, cache_key)
-        if cached:
-            indicators[f"treasury_{maturity}"] = cached
-        elif ALPHA_VANTAGE_KEY:
-            try:
-                url = f"https://www.alphavantage.co/query?function=TREASURY_YIELD&interval=daily&maturity={maturity}&apikey={ALPHA_VANTAGE_KEY}"
-                resp = requests.get(url, timeout=10)
-                data = resp.json()
-                if "data" in data and len(data["data"]) > 0:
-                    latest = data["data"][0]
-                    result = {"value": latest["value"], "date": latest["date"]}
-                    set_cached(db, cache_key, result, minutes=1440)
-                    indicators[f"treasury_{maturity}"] = result
-                time.sleep(1)
-            except Exception:
-                pass
-
-    # US Inflation (annual)
-    cache_key = "av:inflation"
-    cached = get_cached(db, cache_key)
-    if cached:
-        indicators["inflation"] = cached
-    elif ALPHA_VANTAGE_KEY:
-        try:
-            url = f"https://www.alphavantage.co/query?function=INFLATION&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            if "data" in data and len(data["data"]) > 0:
-                latest = data["data"][0]
-                result = {"value": latest["value"], "date": latest["date"]}
-                set_cached(db, cache_key, result, minutes=1440)
-                indicators["inflation"] = result
-            time.sleep(1)
-        except Exception:
-            pass
-
-    # CPI (monthly)
-    cache_key = "av:cpi"
-    cached = get_cached(db, cache_key)
-    if cached:
-        indicators["cpi"] = cached
-    elif ALPHA_VANTAGE_KEY:
-        try:
-            url = f"https://www.alphavantage.co/query?function=CPI&interval=monthly&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            if "data" in data and len(data["data"]) > 0:
-                latest = data["data"][0]
-                result = {"value": latest["value"], "date": latest["date"]}
-                set_cached(db, cache_key, result, minutes=1440)
-                indicators["cpi"] = result
-            time.sleep(1)
-        except Exception:
-            pass
-
-    # Unemployment Rate
-    cache_key = "av:unemployment"
-    cached = get_cached(db, cache_key)
-    if cached:
-        indicators["unemployment"] = cached
-    elif ALPHA_VANTAGE_KEY:
-        try:
-            url = f"https://www.alphavantage.co/query?function=UNEMPLOYMENT&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            if "data" in data and len(data["data"]) > 0:
-                latest = data["data"][0]
-                result = {"value": latest["value"], "date": latest["date"]}
-                set_cached(db, cache_key, result, minutes=1440)
-                indicators["unemployment"] = result
-            time.sleep(1)
-        except Exception:
-            pass
-
-    # US Real GDP (quarterly)
-    cache_key = "av:real_gdp"
-    cached = get_cached(db, cache_key)
-    if cached:
-        indicators["us_gdp"] = cached
-    elif ALPHA_VANTAGE_KEY:
-        try:
-            url = f"https://www.alphavantage.co/query?function=REAL_GDP&interval=quarterly&apikey={ALPHA_VANTAGE_KEY}"
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            if "data" in data and len(data["data"]) > 0:
-                latest = data["data"][0]
-                result = {"value": latest["value"], "date": latest["date"]}
-                set_cached(db, cache_key, result, minutes=1440)
-                indicators["us_gdp"] = result
-        except Exception:
-            pass
+    for key, series_id in fred_series.items():
+        result = fetch_fred_series(db, series_id)
+        if result:
+            indicators[key] = result
 
     # International GDP from World Bank (free, no key)
     gdp_countries = [
+        ("USA", "United States"),
         ("GBR", "United Kingdom"),
         ("DEU", "Germany"),
         ("JPN", "Japan"),
         ("CAN", "Canada"),
         ("FRA", "France"),
+        ("CHN", "China"),
     ]
     intl_gdp = []
-    cache_key = "worldbank:gdp_intl"
+    cache_key = "worldbank:gdp_intl_v2"
     cached = get_cached(db, cache_key)
     if cached:
         intl_gdp = cached
     else:
         country_codes = ";".join([c[0] for c in gdp_countries])
         try:
-            url = f"https://api.worldbank.org/v2/country/{country_codes}/indicator/NY.GDP.MKTP.CD?format=json&date=2020:2024&per_page=100"
+            url = f"https://api.worldbank.org/v2/country/{country_codes}/indicator/NY.GDP.MKTP.CD?format=json&date=2018:2024&per_page=200"
             resp = requests.get(url, timeout=15)
             data = resp.json()
             if len(data) > 1 and data[1]:
                 latest_by_country = {}
                 for entry in data[1]:
-                    code = entry["country"]["id"]
+                    code = entry["countryiso3code"]
                     if code not in latest_by_country and entry["value"] is not None:
                         latest_by_country[code] = {
                             "country": entry["country"]["value"],
                             "code": code,
-                            "value": entry["value"],
+                            "value": round(entry["value"], 1),
                             "year": entry["date"]
                         }
                 for code, name in gdp_countries:
@@ -287,6 +224,44 @@ def economics():
     indicators["intl_gdp"] = intl_gdp
 
     return jsonify(indicators)
+
+
+@market_bp.route("/economics/news", methods=["GET"])
+def economics_news():
+    """Fetch news related to a specific economic topic."""
+    from flask import request as req
+    db = get_db()
+    topic = req.args.get("topic", "economy")
+
+    cache_key = f"newsapi:econ:{topic}"
+    cached = get_cached(db, cache_key)
+    if cached:
+        return jsonify({"articles": cached})
+
+    articles = []
+    if NEWS_API_KEY:
+        try:
+            url = (
+                f"https://newsapi.org/v2/everything"
+                f"?q={topic}&language=en&sortBy=publishedAt&pageSize=5"
+                f"&apiKey={NEWS_API_KEY}"
+            )
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            for article in data.get("articles", [])[:5]:
+                articles.append({
+                    "title": article.get("title"),
+                    "source": article.get("source", {}).get("name"),
+                    "url": article.get("url"),
+                    "published_at": article.get("publishedAt"),
+                    "description": article.get("description"),
+                })
+            if articles:
+                set_cached(db, cache_key, articles, minutes=60)
+        except Exception:
+            pass
+
+    return jsonify({"articles": articles})
 
 
 @market_bp.route("/headlines", methods=["GET"])

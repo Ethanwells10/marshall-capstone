@@ -40,6 +40,7 @@ jobs:
         Environment=ALPHA_VANTAGE_KEY=${{ secrets.ALPHA_VANTAGE_KEY }}
         Environment=FINNHUB_KEY=${{ secrets.FINNHUB_KEY }}
         Environment=NEWS_API_KEY=${{ secrets.NEWS_API_KEY }}
+        Environment=FRED_API_KEY=${{ secrets.FRED_API_KEY }}
         Environment=SECRET_KEY=${{ secrets.SECRET_KEY }}
         ExecStart=/home/ubuntu/market-monitor/backend/venv/bin/gunicorn --bind 127.0.0.1:5000 'app:create_app()'
         Restart=always

@@ -18,6 +18,12 @@
         <div class="row g-3" id="ratesRow"></div>
     </div>
 
+    <!-- GDP -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-bar-chart-line me-1"></i>US Gross Domestic Product</h6>
+        <div class="row g-3" id="gdpRow"></div>
+    </div>
+
     <!-- Inflation & Prices -->
     <div class="mb-4">
         <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-graph-up me-1"></i>Inflation & Prices</h6>
@@ -30,29 +36,43 @@
         <div class="row g-3" id="laborRow"></div>
     </div>
 
-    <!-- GDP -->
-    <div class="mb-4">
-        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-globe me-1"></i>Gross Domestic Product (GDP)</h6>
-        <div class="row g-3" id="gdpRow"></div>
-    </div>
-
-    <!-- International GDP -->
+    <!-- International GDP Comparison -->
     <div class="mb-4">
         <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-globe-americas me-1"></i>International GDP Comparison</h6>
         <div id="intlGdpSection"></div>
+    </div>
+</div>
+
+<!-- News Modal -->
+<div class="modal fade" id="newsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newsModalTitle"><i class="bi bi-newspaper me-2"></i>Related News</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="newsModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-success spinner-border-sm"></div>
+                    <span class="ms-2 text-muted">Loading headlines...</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function indicatorCard(label, value, subtitle, icon) {
-    if (!value) {
+function indicatorCard(label, value, subtitle, newsTopic) {
+    const clickAttr = newsTopic ? `onclick="loadNews('${newsTopic}', '${label}')" style="cursor:pointer;"` : '';
+    const newsHint = newsTopic ? '<i class="bi bi-newspaper text-muted ms-1" style="font-size:0.7rem;"></i>' : '';
+    if (!value && value !== 0) {
         return `
-            <div class="col-md-3 col-sm-6 fade-in">
-                <div class="card stat-card h-100">
+            <div class="col-lg-3 col-md-4 col-sm-6 fade-in">
+                <div class="card stat-card h-100" ${clickAttr}>
                     <div class="card-body text-center py-4">
-                        <div class="stat-label mb-2">${label}</div>
+                        <div class="stat-label mb-2">${label}${newsHint}</div>
                         <div class="stat-value text-muted">--</div>
                         <small class="text-muted">No data available</small>
                     </div>
@@ -60,10 +80,10 @@ function indicatorCard(label, value, subtitle, icon) {
             </div>`;
     }
     return `
-        <div class="col-md-3 col-sm-6 fade-in">
-            <div class="card stat-card h-100">
+        <div class="col-lg-3 col-md-4 col-sm-6 fade-in">
+            <div class="card stat-card h-100" ${clickAttr}>
                 <div class="card-body text-center py-4">
-                    <div class="stat-label mb-2">${label}</div>
+                    <div class="stat-label mb-2">${label}${newsHint}</div>
                     <div class="stat-value">${value}</div>
                     <small class="text-muted">${subtitle || ""}</small>
                 </div>
@@ -73,9 +93,52 @@ function indicatorCard(label, value, subtitle, icon) {
 
 function formatGDP(value) {
     const num = parseFloat(value);
-    if (num >= 1e12) return "$" + (num / 1e12).toFixed(2) + "T";
+    if (num >= 1e12) return "$" + (num / 1e12).toFixed(1) + "T";
     if (num >= 1e9) return "$" + (num / 1e9).toFixed(1) + "B";
     return "$" + num.toLocaleString();
+}
+
+function r1(val) {
+    return parseFloat(val).toFixed(1);
+}
+
+async function loadNews(topic, label) {
+    const modal = new bootstrap.Modal(document.getElementById("newsModal"));
+    document.getElementById("newsModalTitle").innerHTML = `<i class="bi bi-newspaper me-2"></i>${label} — Related News`;
+    document.getElementById("newsModalBody").innerHTML = `
+        <div class="text-center py-4">
+            <div class="spinner-border text-success spinner-border-sm"></div>
+            <span class="ms-2 text-muted">Loading headlines...</span>
+        </div>`;
+    modal.show();
+
+    const resp = await apiFetch(`/api/market/economics/news?topic=${encodeURIComponent(topic)}`);
+    if (!resp) return;
+    const data = await resp.json();
+
+    if (!data.articles || data.articles.length === 0) {
+        document.getElementById("newsModalBody").innerHTML = `
+            <div class="text-center py-4 text-muted">
+                <i class="bi bi-newspaper" style="font-size:2rem;"></i>
+                <p class="mt-2">No recent headlines found for this topic.</p>
+            </div>`;
+        return;
+    }
+
+    document.getElementById("newsModalBody").innerHTML = data.articles.map(a => `
+        <a href="${a.url}" target="_blank" rel="noopener" class="text-decoration-none d-block mb-3">
+            <div class="card watchlist-item">
+                <div class="card-body py-3">
+                    <p class="text-light fw-semibold mb-2" style="line-height:1.4;">${a.title}</p>
+                    ${a.description ? `<p class="text-muted small mb-2">${a.description}</p>` : ''}
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted"><i class="bi bi-building me-1"></i>${a.source || "Unknown"}</small>
+                        ${a.published_at ? `<small class="text-muted">${timeAgo(a.published_at)}</small>` : ''}
+                    </div>
+                </div>
+            </div>
+        </a>
+    `).join("");
 }
 
 async function loadEconomics() {
@@ -83,9 +146,9 @@ async function loadEconomics() {
     if (!user) { window.location.href = "/login"; return; }
 
     document.getElementById("ratesRow").innerHTML = skeletonCards(4);
+    document.getElementById("gdpRow").innerHTML = skeletonCards(3);
     document.getElementById("inflationRow").innerHTML = skeletonCards(3);
     document.getElementById("laborRow").innerHTML = skeletonCards(2);
-    document.getElementById("gdpRow").innerHTML = skeletonCards(2);
     document.getElementById("pageLoader").style.display = "none";
     document.getElementById("pageContent").style.display = "";
 
@@ -94,74 +157,80 @@ async function loadEconomics() {
     const data = await resp.json();
 
     // Interest Rates & Treasury Yields
-    const ratesRow = document.getElementById("ratesRow");
-    ratesRow.innerHTML = [
+    document.getElementById("ratesRow").innerHTML = [
         indicatorCard("Federal Funds Rate",
-            data.fed_funds_rate ? data.fed_funds_rate.value + "%" : null,
-            data.fed_funds_rate ? "As of " + data.fed_funds_rate.date : ""),
-        indicatorCard("2-Year Treasury",
-            data.treasury_2year ? data.treasury_2year.value + "%" : null,
-            data.treasury_2year ? "As of " + data.treasury_2year.date : ""),
-        indicatorCard("5-Year Treasury",
-            data.treasury_5year ? data.treasury_5year.value + "%" : null,
-            data.treasury_5year ? "As of " + data.treasury_5year.date : ""),
-        indicatorCard("10-Year Treasury",
-            data.treasury_10year ? data.treasury_10year.value + "%" : null,
-            data.treasury_10year ? "As of " + data.treasury_10year.date : "")
+            data.fed_funds_rate ? r1(data.fed_funds_rate.value) + "%" : null,
+            data.fed_funds_rate ? "As of " + data.fed_funds_rate.date : "",
+            "federal reserve interest rate"),
+        indicatorCard("2-Year Treasury Yield",
+            data.treasury_2year ? r1(data.treasury_2year.value) + "%" : null,
+            data.treasury_2year ? "As of " + data.treasury_2year.date : "",
+            "2 year treasury yield"),
+        indicatorCard("5-Year Treasury Yield",
+            data.treasury_5year ? r1(data.treasury_5year.value) + "%" : null,
+            data.treasury_5year ? "As of " + data.treasury_5year.date : "",
+            "5 year treasury yield"),
+        indicatorCard("10-Year Treasury Yield",
+            data.treasury_10year ? r1(data.treasury_10year.value) + "%" : null,
+            data.treasury_10year ? "As of " + data.treasury_10year.date : "",
+            "10 year treasury yield")
+    ].join("");
+
+    // GDP
+    document.getElementById("gdpRow").innerHTML = [
+        indicatorCard("Nominal GDP",
+            data.nominal_gdp ? "$" + r1(data.nominal_gdp.value) + "B" : null,
+            data.nominal_gdp ? "Quarter ending " + data.nominal_gdp.date : "",
+            "US GDP"),
+        indicatorCard("Real GDP",
+            data.real_gdp ? "$" + r1(data.real_gdp.value) + "B" : null,
+            data.real_gdp ? "Chained 2017 dollars — " + data.real_gdp.date : "",
+            "US real GDP"),
+        indicatorCard("GDP Growth Rate",
+            data.gdp_growth_rate ? r1(data.gdp_growth_rate.value) + "%" : null,
+            data.gdp_growth_rate ? "Annualized — " + data.gdp_growth_rate.date : "",
+            "US GDP growth")
     ].join("");
 
     // Inflation & Prices
-    const inflationRow = document.getElementById("inflationRow");
-    inflationRow.innerHTML = [
-        indicatorCard("Annual Inflation Rate",
-            data.inflation ? data.inflation.value + "%" : null,
-            data.inflation ? "Year: " + data.inflation.date : ""),
+    document.getElementById("inflationRow").innerHTML = [
+        indicatorCard("Inflation Rate",
+            data.inflation ? r1(data.inflation.value) + "%" : null,
+            data.inflation ? "Annual — " + data.inflation.date : "",
+            "US inflation rate"),
         indicatorCard("Consumer Price Index",
-            data.cpi ? parseFloat(data.cpi.value).toFixed(1) : null,
-            data.cpi ? "As of " + data.cpi.date : ""),
+            data.cpi ? r1(data.cpi.value) : null,
+            data.cpi ? "As of " + data.cpi.date : "",
+            "consumer price index CPI"),
         indicatorCard("Real Interest Rate",
             data.fed_funds_rate && data.inflation ?
-                (parseFloat(data.fed_funds_rate.value) - parseFloat(data.inflation.value)).toFixed(2) + "%" : null,
-            "Fed Rate minus Inflation")
+                r1(data.fed_funds_rate.value - data.inflation.value) + "%" : null,
+            "Fed Rate minus Inflation",
+            "real interest rate")
     ].join("");
 
     // Labor Market
-    const laborRow = document.getElementById("laborRow");
-    laborRow.innerHTML = [
+    document.getElementById("laborRow").innerHTML = [
         indicatorCard("Unemployment Rate",
-            data.unemployment ? data.unemployment.value + "%" : null,
-            data.unemployment ? "As of " + data.unemployment.date : ""),
-        indicatorCard("US Real GDP",
-            data.us_gdp ? "$" + parseFloat(data.us_gdp.value).toLocaleString() + "B" : null,
-            data.us_gdp ? "Quarter ending " + data.us_gdp.date : "")
+            data.unemployment ? r1(data.unemployment.value) + "%" : null,
+            data.unemployment ? "As of " + data.unemployment.date : "",
+            "US unemployment rate jobs")
     ].join("");
-
-    // GDP section
-    const gdpRow = document.getElementById("gdpRow");
-    gdpRow.innerHTML = "";
 
     // International GDP Table
     const intlSection = document.getElementById("intlGdpSection");
     if (data.intl_gdp && data.intl_gdp.length > 0) {
-        let rows = data.intl_gdp.map((g, i) => `
-            <tr>
-                <td>${i + 1}</td>
-                <td class="fw-semibold">${g.country}</td>
-                <td class="text-end">${formatGDP(g.value)}</td>
-                <td class="text-muted text-end">${g.year}</td>
-            </tr>
-        `).join("");
-
-        // Add US GDP at the top if available
-        if (data.us_gdp) {
-            rows = `
+        const rows = data.intl_gdp.map((g, i) => {
+            const isUS = g.code === "USA";
+            const cls = isUS ? "text-success fw-bold" : "";
+            return `
                 <tr>
-                    <td>-</td>
-                    <td class="fw-semibold text-success">United States</td>
-                    <td class="text-end text-success">$${(parseFloat(data.us_gdp.value)).toLocaleString()}B</td>
-                    <td class="text-muted text-end">${data.us_gdp.date}</td>
-                </tr>` + rows;
-        }
+                    <td class="${cls}">${i + 1}</td>
+                    <td class="${cls}">${g.country}</td>
+                    <td class="text-end ${cls}">${formatGDP(g.value)}</td>
+                    <td class="text-muted text-end">${g.year}</td>
+                </tr>`;
+        }).join("");
 
         intlSection.innerHTML = `
             <div class="card">
@@ -171,20 +240,18 @@ async function loadEconomics() {
                             <tr>
                                 <th style="width:40px">#</th>
                                 <th>Country</th>
-                                <th class="text-end">GDP</th>
+                                <th class="text-end">GDP (Nominal)</th>
                                 <th class="text-end">Year</th>
                             </tr>
                         </thead>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>
-            </div>`;
+            </div>
+            <small class="text-muted mt-2 d-block">Source: World Bank</small>`;
     } else {
         intlSection.innerHTML = emptyState("bi-globe", "No international GDP data", "World Bank data will appear here when available.");
     }
-
-    // Remove the separate GDP cards row since we show GDP in the table
-    gdpRow.parentElement.style.display = "none";
 
     document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString();
 }
