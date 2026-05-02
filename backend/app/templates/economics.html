@@ -186,15 +186,15 @@ async function loadEconomics() {
     document.getElementById("gdpRow").innerHTML = [
         indicatorCard("Nominal GDP",
             data.nominal_gdp ? "$" + r1(data.nominal_gdp.value) + "B" : null,
-            data.nominal_gdp ? "Quarter ending " + data.nominal_gdp.date : "",
+            data.nominal_gdp ? "Actual (BEA) — Q1 " + data.nominal_gdp.date.slice(0,4) + " annualized" : "",
             "US GDP"),
         indicatorCard("Real GDP",
             data.real_gdp ? "$" + r1(data.real_gdp.value) + "B" : null,
-            data.real_gdp ? "Chained 2017 dollars — " + data.real_gdp.date : "",
+            data.real_gdp ? "Actual (BEA) — Chained 2017 dollars" : "",
             "US real GDP"),
         indicatorCard("GDP Growth Rate",
             data.gdp_growth_rate ? r1(data.gdp_growth_rate.value) + "%" : null,
-            data.gdp_growth_rate ? "Annualized — " + data.gdp_growth_rate.date : "",
+            data.gdp_growth_rate ? "Actual (BEA) — Annualized quarterly rate" : "",
             "US GDP growth")
     ].join("");
 
@@ -254,7 +254,7 @@ async function loadEconomics() {
                     </table>
                 </div>
             </div>
-            <small class="text-muted mt-2 d-block">Source: IMF World Economic Outlook</small>`;
+            <small class="text-muted mt-2 d-block">Source: IMF World Economic Outlook (full-year estimates, not actual measured)</small>`;
     } else {
         intlSection.innerHTML = emptyState("bi-globe", "No international GDP data", "IMF data will appear here when available.");
     }
