@@ -173,7 +173,6 @@ def economics():
         "real_gdp": "GDPC1",
         "gdp_growth_rate": "A191RL1Q225SBEA",
         "cpi": "CPIAUCSL",
-        "inflation": "FPCPITOTLZGUSA",
         "unemployment": "UNRATE",
     }
 
@@ -182,43 +181,65 @@ def economics():
         if result:
             indicators[key] = result
 
-    # International GDP from World Bank (free, no key)
+    # Inflation rate: CPI percent change from year ago (most current measure)
+    cache_key = "fred:inflation_pc1"
+    cached = get_cached(db, cache_key)
+    if cached:
+        indicators["inflation"] = cached
+    elif FRED_API_KEY:
+        try:
+            url = (
+                f"https://api.stlouisfed.org/fred/series/observations"
+                f"?series_id=CPIAUCSL&api_key={FRED_API_KEY}"
+                f"&file_type=json&sort_order=desc&limit=5&units=pc1"
+            )
+            resp = requests.get(url, timeout=10)
+            data = resp.json()
+            observations = data.get("observations", [])
+            for obs in observations:
+                if obs["value"] != ".":
+                    result = {"value": round(float(obs["value"]), 1), "date": obs["date"]}
+                    set_cached(db, cache_key, result, minutes=720)
+                    indicators["inflation"] = result
+                    break
+        except Exception:
+            pass
+
+    # International GDP from IMF DataMapper (free, no key, has current year estimates)
     gdp_countries = [
         ("USA", "United States"),
-        ("GBR", "United Kingdom"),
+        ("CHN", "China"),
         ("DEU", "Germany"),
         ("JPN", "Japan"),
-        ("CAN", "Canada"),
+        ("GBR", "United Kingdom"),
         ("FRA", "France"),
-        ("CHN", "China"),
+        ("CAN", "Canada"),
     ]
     intl_gdp = []
-    cache_key = "worldbank:gdp_intl_v2"
+    cache_key = "imf:gdp_intl"
     cached = get_cached(db, cache_key)
     if cached:
         intl_gdp = cached
     else:
-        country_codes = ";".join([c[0] for c in gdp_countries])
+        country_path = "/".join([c[0] for c in gdp_countries])
         try:
-            url = f"https://api.worldbank.org/v2/country/{country_codes}/indicator/NY.GDP.MKTP.CD?format=json&date=2018:2024&per_page=200"
+            url = f"https://www.imf.org/external/datamapper/api/v1/NGDPD/{country_path}"
             resp = requests.get(url, timeout=15)
             data = resp.json()
-            if len(data) > 1 and data[1]:
-                latest_by_country = {}
-                for entry in data[1]:
-                    code = entry["countryiso3code"]
-                    if code not in latest_by_country and entry["value"] is not None:
-                        latest_by_country[code] = {
-                            "country": entry["country"]["value"],
+            gdp_values = data.get("values", {}).get("NGDPD", {})
+            for code, name in gdp_countries:
+                years = gdp_values.get(code, {})
+                for yr in ["2026", "2025", "2024"]:
+                    if yr in years and years[yr] is not None:
+                        intl_gdp.append({
+                            "country": name,
                             "code": code,
-                            "value": round(entry["value"], 1),
-                            "year": entry["date"]
-                        }
-                for code, name in gdp_countries:
-                    if code in latest_by_country:
-                        intl_gdp.append(latest_by_country[code])
-                if intl_gdp:
-                    set_cached(db, cache_key, intl_gdp, minutes=1440)
+                            "value": round(years[yr] * 1e9, 1),
+                            "year": yr,
+                        })
+                        break
+            if intl_gdp:
+                set_cached(db, cache_key, intl_gdp, minutes=1440)
         except Exception:
             pass
     indicators["intl_gdp"] = intl_gdp
