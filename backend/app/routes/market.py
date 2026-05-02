@@ -287,10 +287,10 @@ def economics_news():
 
 @market_bp.route("/economics/headlines", methods=["GET"])
 def economics_headlines():
-    """Fetch top economic/macro headlines covering tariffs, oil, trade, etc."""
+    """Fetch top headlines on tariffs, oil, war, and macro topics."""
     db = get_db()
 
-    cache_key = "newsapi:econ_headlines"
+    cache_key = "newsapi:econ_headlines_v2"
     cached = get_cached(db, cache_key)
     if cached:
         return jsonify({"articles": cached})
@@ -300,9 +300,7 @@ def economics_headlines():
         try:
             url = (
                 f"https://newsapi.org/v2/everything"
-                f"?q=(tariffs OR trade war OR oil prices OR inflation OR "
-                f"interest rates OR federal reserve OR recession OR GDP OR "
-                f"economy OR geopolitics)"
+                f"?q=(tariffs OR oil OR war OR sanctions OR trade deal OR OPEC)"
                 f"&language=en&sortBy=publishedAt&pageSize=8"
                 f"&apiKey={NEWS_API_KEY}"
             )
