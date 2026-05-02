@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Economics - Market Monitor{% endblock %}
+
+{% block content %}
+<div id="pageLoader" class="spinner-page">
+    <div class="spinner-border text-success" role="status"><span class="visually-hidden">Loading...</span></div>
+</div>
+
+<div id="pageContent" style="display:none;" class="fade-in">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h4 class="mb-0"><i class="bi bi-bank text-success me-2"></i>Economic Indicators</h4>
+        <small class="text-muted" id="lastUpdated"></small>
+    </div>
+
+    <!-- Interest Rates & Treasury Yields -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-percent me-1"></i>Interest Rates & Treasury Yields</h6>
+        <div class="row g-3" id="ratesRow"></div>
+    </div>
+
+    <!-- Inflation & Prices -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-graph-up me-1"></i>Inflation & Prices</h6>
+        <div class="row g-3" id="inflationRow"></div>
+    </div>
+
+    <!-- Labor Market -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-people me-1"></i>Labor Market</h6>
+        <div class="row g-3" id="laborRow"></div>
+    </div>
+
+    <!-- GDP -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-globe me-1"></i>Gross Domestic Product (GDP)</h6>
+        <div class="row g-3" id="gdpRow"></div>
+    </div>
+
+    <!-- International GDP -->
+    <div class="mb-4">
+        <h6 class="text-muted text-uppercase small mb-3"><i class="bi bi-globe-americas me-1"></i>International GDP Comparison</h6>
+        <div id="intlGdpSection"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function indicatorCard(label, value, subtitle, icon) {
+    if (!value) {
+        return `
+            <div class="col-md-3 col-sm-6 fade-in">
+                <div class="card stat-card h-100">
+                    <div class="card-body text-center py-4">
+                        <div class="stat-label mb-2">${label}</div>
+                        <div class="stat-value text-muted">--</div>
+                        <small class="text-muted">No data available</small>
+                    </div>
+                </div>
+            </div>`;
+    }
+    return `
+        <div class="col-md-3 col-sm-6 fade-in">
+            <div class="card stat-card h-100">
+                <div class="card-body text-center py-4">
+                    <div class="stat-label mb-2">${label}</div>
+                    <div class="stat-value">${value}</div>
+                    <small class="text-muted">${subtitle || ""}</small>
+                </div>
+            </div>
+        </div>`;
+}
+
+function formatGDP(value) {
+    const num = parseFloat(value);
+    if (num >= 1e12) return "$" + (num / 1e12).toFixed(2) + "T";
+    if (num >= 1e9) return "$" + (num / 1e9).toFixed(1) + "B";
+    return "$" + num.toLocaleString();
+}
+
+async function loadEconomics() {
+    const user = await checkAuth();
+    if (!user) { window.location.href = "/login"; return; }
+
+    document.getElementById("ratesRow").innerHTML = skeletonCards(4);
+    document.getElementById("inflationRow").innerHTML = skeletonCards(3);
+    document.getElementById("laborRow").innerHTML = skeletonCards(2);
+    document.getElementById("gdpRow").innerHTML = skeletonCards(2);
+    document.getElementById("pageLoader").style.display = "none";
+    document.getElementById("pageContent").style.display = "";
+
+    const resp = await apiFetch("/api/market/economics");
+    if (!resp) return;
+    const data = await resp.json();
+
+    // Interest Rates & Treasury Yields
+    const ratesRow = document.getElementById("ratesRow");
+    ratesRow.innerHTML = [
+        indicatorCard("Federal Funds Rate",
+            data.fed_funds_rate ? data.fed_funds_rate.value + "%" : null,
+            data.fed_funds_rate ? "As of " + data.fed_funds_rate.date : ""),
+        indicatorCard("2-Year Treasury",
+            data.treasury_2year ? data.treasury_2year.value + "%" : null,
+            data.treasury_2year ? "As of " + data.treasury_2year.date : ""),
+        indicatorCard("5-Year Treasury",
+            data.treasury_5year ? data.treasury_5year.value + "%" : null,
+            data.treasury_5year ? "As of " + data.treasury_5year.date : ""),
+        indicatorCard("10-Year Treasury",
+            data.treasury_10year ? data.treasury_10year.value + "%" : null,
+            data.treasury_10year ? "As of " + data.treasury_10year.date : "")
+    ].join("");
+
+    // Inflation & Prices
+    const inflationRow = document.getElementById("inflationRow");
+    inflationRow.innerHTML = [
+        indicatorCard("Annual Inflation Rate",
+            data.inflation ? data.inflation.value + "%" : null,
+            data.inflation ? "Year: " + data.inflation.date : ""),
+        indicatorCard("Consumer Price Index",
+            data.cpi ? parseFloat(data.cpi.value).toFixed(1) : null,
+            data.cpi ? "As of " + data.cpi.date : ""),
+        indicatorCard("Real Interest Rate",
+            data.fed_funds_rate && data.inflation ?
+                (parseFloat(data.fed_funds_rate.value) - parseFloat(data.inflation.value)).toFixed(2) + "%" : null,
+            "Fed Rate minus Inflation")
+    ].join("");
+
+    // Labor Market
+    const laborRow = document.getElementById("laborRow");
+    laborRow.innerHTML = [
+        indicatorCard("Unemployment Rate",
+            data.unemployment ? data.unemployment.value + "%" : null,
+            data.unemployment ? "As of " + data.unemployment.date : ""),
+        indicatorCard("US Real GDP",
+            data.us_gdp ? "$" + parseFloat(data.us_gdp.value).toLocaleString() + "B" : null,
+            data.us_gdp ? "Quarter ending " + data.us_gdp.date : "")
+    ].join("");
+
+    // GDP section
+    const gdpRow = document.getElementById("gdpRow");
+    gdpRow.innerHTML = "";
+
+    // International GDP Table
+    const intlSection = document.getElementById("intlGdpSection");
+    if (data.intl_gdp && data.intl_gdp.length > 0) {
+        let rows = data.intl_gdp.map((g, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td class="fw-semibold">${g.country}</td>
+                <td class="text-end">${formatGDP(g.value)}</td>
+                <td class="text-muted text-end">${g.year}</td>
+            </tr>
+        `).join("");
+
+        // Add US GDP at the top if available
+        if (data.us_gdp) {
+            rows = `
+                <tr>
+                    <td>-</td>
+                    <td class="fw-semibold text-success">United States</td>
+                    <td class="text-end text-success">$${(parseFloat(data.us_gdp.value)).toLocaleString()}B</td>
+                    <td class="text-muted text-end">${data.us_gdp.date}</td>
+                </tr>` + rows;
+        }
+
+        intlSection.innerHTML = `
+            <div class="card">
+                <div class="card-body p-0">
+                    <table class="table table-dark mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th>Country</th>
+                                <th class="text-end">GDP</th>
+                                <th class="text-end">Year</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+    } else {
+        intlSection.innerHTML = emptyState("bi-globe", "No international GDP data", "World Bank data will appear here when available.");
+    }
+
+    // Remove the separate GDP cards row since we show GDP in the table
+    gdpRow.parentElement.style.display = "none";
+
+    document.getElementById("lastUpdated").textContent = "Updated " + new Date().toLocaleTimeString();
+}
+
+loadEconomics();
+</script>
+{% endblock %}

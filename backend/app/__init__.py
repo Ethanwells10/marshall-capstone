@@ -65,6 +65,10 @@ def create_app():
     def portfolio_page():
         return render_template("portfolio.html")
 
+    @app.route("/economics")
+    def economics_page():
+        return render_template("economics.html")
+
     @app.route("/search")
     def search_page():
         query = request.args.get("q", "").strip().upper()
