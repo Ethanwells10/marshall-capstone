@@ -287,37 +287,51 @@ def economics_news():
 
 @market_bp.route("/economics/headlines", methods=["GET"])
 def economics_headlines():
-    """Fetch top headlines on tariffs, oil, war, and macro topics."""
+    """Fetch top headlines on tariffs, trade, oil prices, and geopolitics."""
+    from flask import request as req
     db = get_db()
 
-    cache_key = "newsapi:econ_headlines_v2"
+    cache_key = "newsapi:econ_headlines_v3"
     cached = get_cached(db, cache_key)
     if cached:
         return jsonify({"articles": cached})
 
     articles = []
     if NEWS_API_KEY:
-        try:
-            url = (
-                f"https://newsapi.org/v2/everything"
-                f"?q=(tariffs OR oil OR war OR sanctions OR trade deal OR OPEC)"
-                f"&language=en&sortBy=publishedAt&pageSize=8"
-                f"&apiKey={NEWS_API_KEY}"
-            )
-            resp = requests.get(url, timeout=10)
-            data = resp.json()
-            for article in data.get("articles", [])[:8]:
-                articles.append({
-                    "title": article.get("title"),
-                    "source": article.get("source", {}).get("name"),
-                    "url": article.get("url"),
-                    "published_at": article.get("publishedAt"),
-                    "description": article.get("description"),
-                })
-            if articles:
-                set_cached(db, cache_key, articles, minutes=30)
-        except Exception:
-            pass
+        queries = [
+            '"tariffs" OR "trade war" OR "trade deal"',
+            '"oil prices" OR "crude oil" OR OPEC',
+            '"Ukraine" OR "Russia" OR "China Taiwan" OR "Middle East"',
+        ]
+        seen_titles = set()
+        for q in queries:
+            try:
+                url = (
+                    f"https://newsapi.org/v2/everything"
+                    f"?q={q}"
+                    f"&language=en&sortBy=publishedAt&pageSize=4"
+                    f"&domains=reuters.com,apnews.com,bbc.co.uk,cnbc.com,"
+                    f"bloomberg.com,nytimes.com,wsj.com,ft.com,aljazeera.com"
+                    f"&apiKey={NEWS_API_KEY}"
+                )
+                resp = requests.get(url, timeout=10)
+                data = resp.json()
+                for article in data.get("articles", []):
+                    title = article.get("title", "")
+                    if title and title not in seen_titles:
+                        seen_titles.add(title)
+                        articles.append({
+                            "title": title,
+                            "source": article.get("source", {}).get("name"),
+                            "url": article.get("url"),
+                            "published_at": article.get("publishedAt"),
+                            "description": article.get("description"),
+                        })
+            except Exception:
+                pass
+        articles = articles[:8]
+        if articles:
+            set_cached(db, cache_key, articles, minutes=30)
 
     return jsonify({"articles": articles})
 
